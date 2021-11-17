@@ -1,0 +1,17 @@
+import { EgretLoadable } from "egret";
+import ConstantList from "../../appConfig";
+import { useTranslation, withTranslation, Trans } from 'react-i18next';
+const ReportSampleByHealthOrg = EgretLoadable({
+  loader: () => import("./ReportSampleByHealthOrg")
+});
+const ViewComponent = withTranslation()(ReportSampleByHealthOrg);
+
+const ReportSampleByHealthOrgRoutes = [
+  {
+    path:  ConstantList.ROOT_PATH+"report/reportSampleByHealthOrg",
+    exact: true,
+    component: ViewComponent
+  }
+];
+
+export default ReportSampleByHealthOrgRoutes;

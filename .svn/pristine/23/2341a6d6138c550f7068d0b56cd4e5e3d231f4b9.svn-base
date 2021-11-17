@@ -1,0 +1,838 @@
+import {
+  Grid,
+  DialogActions,
+  InputAdornment,
+  MuiThemeProvider,
+  TextField,
+  Button,
+  IconButton,
+  Icon,
+  FormControl,
+  Radio,
+  Dialog,
+  Checkbox,
+  FormControlLabel
+} from "@material-ui/core";
+import { createMuiTheme } from "@material-ui/core/styles";
+import React, { Component } from "react";
+import UserRoles from "../../services/UserRoles";
+import {
+  saveItem,
+  healthOrganizationSearchByPage,
+  checkCode,
+} from "../Sample/SampleService";
+import DateFnsUtils from "@date-io/date-fns";
+import { ValidatorForm, TextValidator } from "react-material-ui-form-validator";
+import DialogContent from "@material-ui/core/DialogContent";
+import DialogTitle from "@material-ui/core/DialogTitle";
+import Input from "@material-ui/core/Input";
+import InputLabel from "@material-ui/core/InputLabel";
+import MenuItem from "@material-ui/core/MenuItem";
+import Select from "@material-ui/core/Select";
+import AsynchronousAutocomplete from "../utilities/AsynchronousAutocomplete";
+import Draggable from "react-draggable";
+import { useTranslation, withTranslation, Trans } from "react-i18next";
+import Paper from "@material-ui/core/Paper";
+import NotificationPopup from "../Component/NotificationPopup/NotificationPopup";
+import HealthOrganizationPopup from "../Sample/HealthOrganizationPopup";
+import Constant from "../Sample/Constant";
+import {
+  MuiPickersUtilsProvider,
+  KeyboardDatePicker,
+} from "@material-ui/pickers";
+import { getAllOrgByUserId } from "../User/UserService";
+import SelectSamplePopup from "../Sample/SelectSamplePopup";
+import authService from "../../services/jwtAuthService";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+toast.configure({
+  autoClose: 2000,
+  draggable: false,
+  limit: 3,
+});
+
+function MaterialButton(props) {
+  const { t, i18n } = useTranslation();
+  const item = props.item;
+  return (
+    <div>
+      <IconButton onClick={() => props.onSelect(item, 0)}>
+        <Icon color="error">delete</Icon>
+      </IconButton>
+    </div>
+  );
+}
+function PaperComponent(props) {
+  return (
+    <Draggable
+      handle="#draggable-dialog-title"
+      cancel={'[class*="MuiDialogContent-root"]'}
+    >
+      <Paper {...props} />
+    </Draggable>
+  );
+}
+
+function SelectStatus(props) {
+
+  return (
+    <Select
+      value={props.value}
+      onChange={(sampleStatus) => {
+        props.onChange(sampleStatus, "sampleStatus")
+      }}
+      inputProps={{
+        name: "sampleStatus",
+        id: "sampleStatus-simple",
+        readOnly: props.readOnly
+      }}
+    >
+      {props.listSampleStatus.map((item) => {
+        return (
+          <MenuItem key={item.id} value={item.id}>
+            {item.name}
+          </MenuItem>
+        );
+      })}
+    </Select>
+  );
+}
+class SampleEditorDialog extends React.Component {
+  state = {
+    path: "",
+    rowsPerPage: 5,
+    page: 0,
+    data: [],
+    totalElements: 0,
+    itemList: [],
+    shouldOpenEditorDialog: false,
+    shouldOpenConfirmationDialog: false,
+    selectedItem: {},
+    person: {},
+    keyword: "",
+    shouldOpenHealthOrganizationPopup: false,
+    shouldOpenNotificationPopup: false,
+    shouldOpenSelectSamplePopup: false,
+    sampleType: 1, // mẫu thường
+    id: null,
+    sampleResult: null,
+    allTypeOrgUser:false,
+    shouldOpenSampleCollectOrgPopup: false,
+    formReadonly: {
+      personalInfo: false,
+      sampleType: false,
+      code: false,
+      sampleStatus: false,
+      sampleDate: false,
+      shipDate: false,
+      testingDate: false,
+      resultDate: false,
+      sampleCollectOrg: false,
+      labTest: false,
+      sampleResult: false,
+      saveBtn: false,
+    },
+    checkGeneCode: false,
+  };
+
+  handleDialogClose = () => {
+    this.setState({
+      shouldOpenEditorDialog: false,
+      shouldOpenConfirmationDialog: false,
+      shouldOpenNotificationPopup: false,
+      shouldOpenSelectParentPopup: false,
+      shouldOpenHealthOrganizationPopup: false,
+      shouldOpenSampleCollectOrgPopup: false
+    });
+  };
+  openParentPopup = (event) => {
+    this.setState({ shouldOpenSelectParentPopup: true });
+  };
+  handleSelectParent = (parent) => {
+    this.setState({ chidren: parent });
+    this.setState({ shouldOpenSelectParentPopup: false });
+  };
+  handleChange = (event, source) => {
+    event.persist();
+    if (source === "sampleType") {
+      let sampleType = this.state;
+      sampleType = event.target.value;
+      this.setState({ sampleType: sampleType });
+      return;
+    }
+    if (source === "sampleStatus") {
+      let sampleStatus = this.state;
+      sampleStatus = event.target.value;
+      this.setState({ sampleStatus: sampleStatus });
+      return;
+    }
+    if(source === "checkGeneCode"){
+      let codeOld = this.state.codeOld;
+      let checkGeneCode = this.state;
+      checkGeneCode = event.target.checked
+      this.setState({ checkGeneCode: checkGeneCode }, ()=>{
+        if(this.state.checkGeneCode){
+          this.setState({code: ''})
+        } else {
+          this.setState({code: codeOld})
+        } 
+      })
+      return
+  }
+    this.setState({
+      [event.target.name]: event.target.value,
+    });
+  };
+  handleChangePerson = (event, source) => {
+    let { person } = this.state;
+    if (person == null) {
+      person = {};
+    }
+    if (source === "birthDate") {
+      person["birthDate"] = event;
+      this.setState({ person: person });
+      return;
+    }
+    let name = event.target.name;
+    let value = event.target.value;
+    person[name] = value;
+
+    this.setState({
+      person: person,
+    });
+  };
+
+  handleDelete = (row) => {
+    let { chidren } = this.state;
+  };
+
+  selectHealthOrganization = (sampleCollectOrg) => {
+    this.setState({ sampleCollectOrg: sampleCollectOrg }, function () { });
+  };
+
+  handleSelectHealthOrganization = (labTest) => {
+    if (labTest && labTest.id) {
+      this.setState({ labTest: labTest });
+      this.handleDialogClose();
+    }
+  };
+
+  handleSelectSampleCollectOrg = (sampleCollectOrg) => {
+    this.setState({ sampleCollectOrg: sampleCollectOrg }, () => {
+      this.handleDialogClose();
+    })
+  }
+
+  selectSuspectedType = (suspectedType) => {
+    let { person } = this.state;
+    if (person == null) {
+      person = {};
+    }
+    person["suspectedType"] = suspectedType;
+    this.setState({ person: person }, function () { });
+  };
+
+  selectEpidemiologicalFactors = (epidemiologicalFactors) => {
+    let { person } = this.state;
+    if (person == null) {
+      person = {};
+    }
+    person["epidemiologicalFactors"] = epidemiologicalFactors;
+    this.setState({ person: person }, function () { });
+  };
+
+  selectSuspectedLevel = (suspectedLevel) => {
+    let { person } = this.state;
+    if (person == null) {
+      person = {};
+    }
+    person["suspectedLevel"] = suspectedLevel;
+    this.setState({ person: person }, function () { });
+  };
+
+  componentWillMount() {
+    let { item } = this.props;
+    this.setState({ ...item }, () => {
+      this.setState({codeOld: this.state.code});
+      let user = authService.getLoginUser();
+      if (user != null && !UserRoles.isAdmin()) {
+        getAllOrgByUserId(user.id).then(({ data }) => {
+          if (data != null && data.org != null) {
+            if (data.org.orgType == 1) {
+              this.setState({
+                labTest: data.org,
+                formReadonly: {
+                  sampleType: true,
+                  code: true,
+                  sampleStatus: false,
+                  sampleDate: true,
+                  shipDate: true,
+                  testingDate: false,
+                  resultDate: false,
+                  sampleCollectOrg: true,
+                  sampleResult: false,
+                  labTest: true,
+                },
+                labTestUser: true
+              });
+            }
+            if (data.org.orgType == 2) {
+              this.setState({
+                sampleCollectUser: true,
+                sampleCollectOrg: data.org
+              });
+              if (item != null && item.id != null && item.sampleStatus != 'Draft') {
+                this.setState({
+                  formReadonly: {
+                    personalInfo: true,
+                    sampleType: true,
+                    code: true,
+                    sampleStatus: true,
+                    sampleDate: true,
+                    shipDate: true,
+                    testingDate: true,
+                    resultDate: true,
+                    sampleCollectOrg: true,
+                    labTest: true,
+                    saveBtn: true,
+                    sampleResult: true,
+                  },
+                });
+              } else {
+                this.setState({
+                  formReadonly: {
+                    personalInfo: false,
+                    sampleType: false,
+                    code: false,
+                    sampleStatus: false,
+                    sampleDate: false,
+                    shipDate: false,
+                    testingDate: true,
+                    resultDate: true,
+                    sampleResult: true,
+                    sampleCollectOrg: false,
+                    labTest: false,
+                  },
+                });
+              }
+            } if (data.org.orgType == 0) {
+              this.setState({
+                allTypeOrgUser: true,
+              });
+            }
+          }
+        });
+      }
+    });
+  }
+
+  handleFormSubmit = async () => {
+    let { item, handleSelect, handleClose, t } = this.props;
+    let isNew = true;
+    if (item != null) {
+      isNew = false;
+    } else {
+      item = {};
+    }
+    let {
+      id,
+      sampleDate,
+      testingDate,
+      resultDate,
+      parent,
+      chidren,
+      sampleStatus,
+      code,
+      shipDate,
+      labTest,
+      sampleCollectOrg,
+      sampleAdminUnit,
+      sampleResult
+    } = this.state;
+
+    item.sampleType = 1;
+    item.id = id;
+    item.sampleDate = sampleDate;
+    item.testingDate = testingDate;
+    item.resultDate = resultDate;
+    item.parent = parent;
+    item.chidren = chidren;
+    item.sampleStatus = sampleStatus;
+    item.code = code;
+    item.shipDate = shipDate;
+    item.labTest = labTest;
+    item.sampleCollectOrg = sampleCollectOrg;
+    item.sampleAdminUnit = sampleAdminUnit;
+    item.sampleResult = sampleResult;
+    item.isGeneratorCode = this.state.checkGeneCode
+
+    if(!code && !this.state.checkGeneCode) {
+      toast.warn("Chưa nhập mã mẫu");
+      return;
+    }
+
+    if (!sampleDate) {
+      toast.warn("Chưa chọn ngày lấy mẫu");
+      return;
+    }
+    if (!labTest) {
+      toast.warn("Chưa chọn đơn vị xét nghiệm");
+      return;
+    }
+
+    if(this.state.checkGeneCode) {
+      if (isNew) {
+        handleSelect(item);
+      } else {
+        handleClose(item);
+      }
+    }else {
+      await checkCode(id, code).then((result) => {
+        //Nếu trả về true là code đã được sử dụng
+        if (result.data) {
+          toast.warning("Code đã được sử dụng");
+        } else {
+          // mặc định là mẫu thường
+          if (isNew) {
+            handleSelect(item);
+          } else {
+            handleClose(item);
+          }
+        }
+      });
+    }
+  };
+
+  autoGeneratorCode = () => {
+    this.setState({checkGeneCode: true})
+}
+
+  render() {
+    const { t, i18n, handleClose, handleSelect, selectedItem, open, item } =
+      this.props;
+    let searchObject = { pageIndex: 0, pageSize: 100000 };
+    let {
+      keyword,
+      isCheck,
+      sampleType,
+      sampleStatus,
+      name,
+      code,
+      labTest,
+      person,
+      shouldOpenHealthOrganizationPopup,
+      shouldOpenNotificationPopup,
+      sampleCollectOrg,
+      sampleDate,
+      shipDate,
+      testingDate,
+      resultDate,
+      sampleResult,
+      labTestUser,
+      sampleCollectUser,
+      shouldOpenSampleCollectOrgPopup,
+      formReadonly,
+      allTypeOrgUser
+    } = this.state;
+    //TODO cần sửa lại, hardcode để làm nhanh
+    let listSampleStatusCollectionOrg = [
+      { id: 'Draft', name: "Bản nháp" },
+      { id: 'Pending', name: "Chờ xử lý" }
+    ]
+    let listSampleStatusLabtest = [
+      { id: 'Pending', name: "Chờ xử lý" },
+      { id: 'Accepted', name: "Đã được chấp nhận" },
+      { id: 'Rejected', name: "Mẫu không thể sử dụng" },
+      { id: 'Canceled', name: "Mẫu bị hủy" },
+    ]
+    return (
+      <Dialog
+        open={open}
+        PaperComponent={PaperComponent}
+        maxWidth="md"
+        fullWidth={true}
+      >
+        {shouldOpenNotificationPopup && (
+          <NotificationPopup
+            title={t("general.noti")}
+            open={shouldOpenNotificationPopup}
+            // onConfirmDialogClose={this.handleDialogClose}
+            onYesClick={this.handleDialogClose}
+            text={t(this.state.Notification)}
+            agree={t("general.agree")}
+          />
+        )}
+        <DialogTitle style={{ cursor: "move" }} id="draggable-dialog-title">
+          {t("general.saveUpdate")}
+        </DialogTitle>
+        <ValidatorForm ref="form" onSubmit={this.handleFormSubmit}>
+          <DialogContent>
+            <Grid className="" container spacing={2}>
+              {this.state.shouldOpenSelectParentPopup && (
+                <SelectSamplePopup
+                  open={this.state.shouldOpenSelectParentPopup}
+                  handleSelect={this.handleSelectParent}
+                  selectedItem={
+                    this.state.chidren != null ? this.state.chidren : []
+                  }
+                  handleClose={this.handleDialogClose}
+                  t={t}
+                  i18n={i18n}
+                />
+              )}
+              <Grid item lg={3} md={12} sm={12} xs={12}>
+                <FormControl fullWidth={true}>
+                  <InputLabel htmlFor="sampleType-simple">
+                    {t("Loại mẫu")}
+                  </InputLabel>
+                  <Select
+                    value={sampleType ? sampleType : {}}
+                    onChange={(sampleType) =>
+                      this.handleChange(sampleType, "sampleType")
+                    }
+                    inputProps={{
+                      name: "sampleType",
+                      id: "sampleType-simple",
+                      readOnly: true
+                    }}
+                  >
+                    {Constant.listSampleType.map((item) => {
+                      return (
+                        <MenuItem key={item.id} value={item.id}>
+                          {item.name}
+                        </MenuItem>
+                      );
+                    })}
+
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item lg={3} md={3} sm={3} xs={6} style={{position: 'relative'}}>
+               {!this.state.id && (
+                 <FormControlLabel
+                 className="icon-gene-code"
+                 control={
+                   <Checkbox
+                     checked={this.state.checkGeneCode}
+                     onChange={(checkGeneCode) => this.handleChange(checkGeneCode, 'checkGeneCode')}
+                     value="checkGeneCode"
+                     color="primary"
+                   />
+                 }
+                />
+               )} 
+              {this.state.checkGeneCode ? (
+                <p>Mã sẽ được tạo tự động</p>
+                                
+              ) : (
+                <TextValidator
+                  className="w-100 "
+                  label={
+                    <span>
+                      <span style={{ color: "red" }}> *</span>
+
+                      {t("Mã mẫu")}
+                    </span>
+                  }
+                  onChange={this.handleChange}
+                  type="text"
+                  name="code"
+                  value={code}
+                  inputProps={{
+                    readOnly: formReadonly.code
+                  }}
+                  validators={["required"]}
+                  errorMessages={[t("general.required")]}
+                />
+              )}
+              </Grid>
+              <Grid item lg={3} md={3} sm={3} xs={6}>
+                <FormControl fullWidth={true}>
+                  <InputLabel htmlFor="sampleStatus-simple">
+                    {t("Tình trạng mẫu")}
+                  </InputLabel>
+                  {labTestUser && <SelectStatus
+                    value={sampleStatus}
+                    onChange={this.handleChange}
+                    readOnly={formReadonly.sampleStatus}
+                    listSampleStatus={listSampleStatusLabtest} />}
+                  {sampleCollectUser && <SelectStatus
+                    value={sampleStatus}
+                    onChange={this.handleChange}
+                    readOnly={formReadonly.sampleStatus}
+                    listSampleStatus={listSampleStatusCollectionOrg} />}
+                  {(UserRoles.isAdmin() || allTypeOrgUser) && <SelectStatus
+                    value={sampleStatus}
+                    onChange={this.handleChange}
+                    readOnly={formReadonly.sampleStatus}
+                    listSampleStatus={Constant.listSampleStatus} />}
+                </FormControl>
+              </Grid>
+              <Grid item lg={3} md={3} sm={3} xs={12}>
+                <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                  <KeyboardDatePicker
+                    size="small"
+                    className="w-100"
+                    style={{ marginTop: '3px' }}
+                    margin="none"
+                    id="date-picker-dialog"
+                    label={
+                      <span>
+                        <span style={{ color: "red" }}>*</span>
+                        {t("Ngày lấy mẫu")}
+                      </span>
+                    }
+                    inputVariant="standard"
+                    type="text"
+                    autoOk={true}
+                    format="dd/MM/yyyy HH:mm:ss"
+                    value={sampleDate ? sampleDate : null}
+                    onChange={(value) => {
+                      this.setState({ sampleDate: value });
+                    }}
+                    InputProps={{ readOnly: formReadonly.sampleDate }}
+                    KeyboardButtonProps={{
+                      'aria-label': 'change date',
+                      disabled: formReadonly.sampleDate
+                    }}
+                    validators={["required"]}
+                    errorMessages={t("general.errorMessages_required")}
+                  />
+                </MuiPickersUtilsProvider>
+              </Grid>
+              <Grid item lg={3} md={3} sm={3} xs={12}>
+                <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                  <KeyboardDatePicker
+                    size="small"
+                    className="w-100"
+                    margin="none"
+                    id="date-picker-dialog"
+                    style={{ marginTop: '3px' }}
+                    label={<span>{t("Ngày gửi mẫu")}</span>}
+                    inputVariant="standard"
+                    type="text"
+                    autoOk={true}
+                    format="dd/MM/yyyy"
+                    value={shipDate ? shipDate : null}
+                    onChange={(value) => {
+                      this.setState({ shipDate: value });
+                    }}
+                    InputProps={{ readOnly: formReadonly.shipDate }}
+                    KeyboardButtonProps={{
+                      'aria-label': 'change date',
+                      disabled: formReadonly.shipDate
+                    }}
+                  />
+                </MuiPickersUtilsProvider>
+              </Grid>
+              <Grid item lg={3} md={3} sm={3} xs={12}>
+                <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                  <KeyboardDatePicker
+                    size="small"
+                    className="w-100"
+                    margin="none"
+                    id="date-picker-dialog"
+                    style={{ marginTop: '3px' }}
+                    label={<span>{t("Ngày làm xét nghiệm")}</span>}
+                    inputVariant="standard"
+                    type="text"
+                    autoOk={true}
+                    format="dd/MM/yyyy"
+                    value={testingDate ? testingDate : null}
+                    onChange={(value) => {
+                      this.setState({ testingDate: value });
+                    }}
+                    InputProps={{ readOnly: formReadonly.testingDate }}
+                    KeyboardButtonProps={{
+                      'aria-label': 'change date',
+                      disabled: formReadonly.testingDate
+                    }}
+                  // validators={["required"]}
+                  // errorMessages={t('general.errorMessages_required')}
+                  />
+                </MuiPickersUtilsProvider>
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                  <KeyboardDatePicker
+                    size="small"
+                    className="w-100"
+                    margin="none"
+                    id="date-picker-dialog"
+                    style={{ marginTop: '3px' }}
+                    label={
+                      <span>
+                        {/* <span style={{ color: "red" }}>*</span> */}
+                        {t("Ngày có kết quả")}
+                      </span>
+                    }
+                    inputVariant="standard"
+                    type="text"
+                    autoOk={true}
+                    format="dd/MM/yyyy"
+                    value={resultDate ? resultDate : null}
+                    onChange={(value) => {
+                      this.setState({ resultDate: value });
+                    }}
+                    InputProps={{ readOnly: formReadonly.resultDate }}
+                    KeyboardButtonProps={{
+                      'aria-label': 'change date',
+                      disabled: formReadonly.resultDate
+                    }}
+                  // validators={["required"]}
+                  // errorMessages={t('general.errorMessages_required')}
+                  />
+                </MuiPickersUtilsProvider>
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <FormControl fullWidth={true}>
+                  <InputLabel htmlFor="sampleResult-simple">
+                    {t("Kết quả mẫu")}
+                  </InputLabel>
+                  <Select
+                    value={sampleResult}
+                    onChange={(sampleResult) =>
+                      this.handleChange(sampleResult, "sampleResult")
+                    }
+                    inputProps={{
+                      name: "sampleResult",
+                      id: "sampleResult-simple",
+                      readOnly: formReadonly.sampleResult
+                    }}
+                  >
+                    {Constant.listSampleResult.map((item) => {
+                      return (
+                        <MenuItem key={item.id} value={item.id}>
+                          {item.name}
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item lg={6} md={6} sm={6} xs={12}>
+                <TextValidator
+                  size="small"
+                  className="w-100 "
+                  label={
+                    <span className="font">
+                      <span style={{ color: "red" }}></span>
+                      {t("Chọn đơn vị lấy mẫu")}
+                    </span>
+                  }
+                  name="sampleCollectOrg"
+                  value={sampleCollectOrg ? sampleCollectOrg.name : ""}
+                  InputProps={{
+                    endAdornment: (!formReadonly.sampleCollectOrg && (
+                      <InputAdornment position="end">
+                        <Button
+                          size={"small"}
+                          disabled={formReadonly.sampleCollectOrg}
+                          className="align-bottom"
+                          variant="contained"
+                          color="primary"
+                          onClick={() =>
+                            this.setState({
+                              shouldOpenSampleCollectOrgPopup: true,
+                            })
+                          }
+                        >
+                          {t("Select")}
+                        </Button>
+                      </InputAdornment>)
+                    ),
+                  }}
+                  size="small"
+                />
+                {shouldOpenSampleCollectOrgPopup && (
+                  <HealthOrganizationPopup
+                    open={shouldOpenSampleCollectOrgPopup}
+                    listOrgType={Constant.listCollectOrgType}
+                    orgType={2}//Là đơn vị lấy mấu
+                    handleSelect={this.handleSelectSampleCollectOrg}
+                    item={sampleCollectOrg}
+                    handleClose={this.handleDialogClose}
+                    t={t}
+                    i18n={i18n}
+                  ></HealthOrganizationPopup>
+                )}
+              </Grid>
+
+              <Grid item lg={6} md={6} sm={6} xs={12}>
+                <TextValidator
+                  size="small"
+                  className="w-100 "
+                  label={
+                    <span className="font">
+                      <span style={{ color: "red" }}> * </span>
+                      {t("Chọn đơn vị xét nghiệm")}
+                    </span>
+                  }
+                  name="labTest"
+                  value={labTest ? labTest.name : ""}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Button
+                          size={"small"}
+                          className="align-bottom"
+                          variant="contained"
+                          color="primary"
+                          onClick={() =>
+                            this.setState({
+                              shouldOpenHealthOrganizationPopup: true,
+                            })
+                          }
+                        >
+                          {t("Select")}
+                        </Button>
+                      </InputAdornment>
+                    ),
+                  }}
+                  validators={["required"]}
+                  errorMessages={[t("general.errorMessages_required")]}
+                  // variant="outlined"
+                  size="small"
+                />
+                {shouldOpenHealthOrganizationPopup && (
+                  <HealthOrganizationPopup
+                    open={shouldOpenHealthOrganizationPopup}
+                    listOrgType={Constant.listLabTestOrgType}
+                    orgType={1}//Là đơn vị xét nghiệm
+                    handleSelect={this.handleSelectHealthOrganization}
+                    item={labTest}
+                    handleClose={this.handleDialogClose}
+                    t={t}
+                    i18n={i18n}
+                  ></HealthOrganizationPopup>
+                )}
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <div className="flex flex-space-between flex-middle mt-10">
+              <Button
+                variant="contained"
+                className="mr-12"
+                color="secondary"
+                onClick={() => this.props.handleClose()}
+              >
+                {t("general.cancel")}
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                style={{ marginRight: "15px" }}
+                onClick={() => this.handleFormSubmit()}
+              >
+                {t("general.save")}
+              </Button>
+            </div>
+          </DialogActions>
+        </ValidatorForm>
+      </Dialog>
+    );
+  }
+}
+export default SampleEditorDialog;

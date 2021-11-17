@@ -1,0 +1,17 @@
+import { EgretLoadable } from "egret";
+import ConstantList from "../../appConfig";
+import { useTranslation, withTranslation, Trans } from 'react-i18next';
+const reportNumberOfTestsByStatus = EgretLoadable({
+  loader: () => import("./ReportNumberOfTestsByStatus")
+});
+const ViewComponent = withTranslation()(reportNumberOfTestsByStatus);
+
+const reportNumberOfTestsByStatusRoutes = [
+  {
+    path:  ConstantList.ROOT_PATH+"report/numberOfTestsByStatus",
+    exact: true,
+    component: ViewComponent
+  }
+];
+
+export default reportNumberOfTestsByStatusRoutes;

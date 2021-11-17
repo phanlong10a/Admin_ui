@@ -1,0 +1,17 @@
+import { EgretLoadable } from "egret";
+import ConstantList from "../../appConfig";
+import { useTranslation, withTranslation, Trans } from "react-i18next";
+const SuspectedPersonTable = EgretLoadable({
+  loader: () => import("./SuspectedPersonTable"),
+});
+const ViewComponent = withTranslation()(SuspectedPersonTable);
+
+const suspectedPersonRoutes = [
+  {
+    path: ConstantList.ROOT_PATH + "suspected-person",
+    exact: true,
+    component: ViewComponent,
+  },
+];
+
+export default suspectedPersonRoutes;

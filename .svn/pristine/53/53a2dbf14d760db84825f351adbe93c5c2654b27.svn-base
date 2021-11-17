@@ -1,0 +1,26 @@
+import axios from "axios";
+import ConstantList from "../../appConfig";
+const API_PATH_ROLE = ConstantList.API_ENPOINT + "/api/report/";
+const API_PATH_EXCEL = ConstantList.API_ENPOINT + "/api/downloadExcel/";
+
+export const reportNumberOfTestsByStatus = (dto) => {
+  var params = "reportNumberOfTestsByStatus";
+  var url = API_PATH_ROLE + params;
+  return axios.post(url,dto);
+};
+export const reportSampleByHealthOrg = (dto) => {
+    var params = "reportSampleByHealthOrg";
+    var url = API_PATH_ROLE + params;
+    return axios.post(url,dto);
+};
+
+export const exportExcelReportSampleByHealthOrg = (dto) => {
+  var params = "exportExcelReportSampleByHealthOrg";
+  var urll = API_PATH_EXCEL + params;
+  return axios({
+    url: urll,
+    method: "POST",
+    responseType: "blob", // important
+    data: dto,
+  })
+};

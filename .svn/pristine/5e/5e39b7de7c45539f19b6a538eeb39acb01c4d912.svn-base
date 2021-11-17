@@ -1,0 +1,17 @@
+import { EgretLoadable } from "egret";
+import ConstantList from "../../appConfig";
+import { useTranslation, withTranslation, Trans } from 'react-i18next';
+const HealthResource = EgretLoadable({
+  loader: () => import("./HealthResource")
+});
+const ViewComponent = withTranslation()(HealthResource);
+
+const HealthResourceRoutes = [
+  {
+    path:  ConstantList.ROOT_PATH + "dashboard/health_resource",
+    exact: true,
+    component: ViewComponent
+  }
+];
+
+export default HealthResourceRoutes;

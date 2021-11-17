@@ -1,0 +1,1064 @@
+
+import React, { Component } from "react";
+import {
+  Dialog,
+  Button,
+  Grid,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  DialogTitle,
+  Icon,
+  IconButton,
+  DialogContent,
+  DialogActions,
+  InputAdornment,
+  Tooltip,
+} from "@material-ui/core";
+import {
+  healthOrganizationSearchByPage
+} from "../Sample/SampleService";
+import { TextValidator, ValidatorForm } from "react-material-ui-form-validator";
+import { addNewItem, updateItem } from "./SuspectedPersonService";
+import MaterialTable, { MTableToolbar } from "material-table";
+import AsynchronousAutocomplete from '../utilities/AsynchronousAutocomplete'
+import { toast } from "react-toastify";
+import DateFnsUtils from "@date-io/date-fns";
+import { getByPageByParentId as getAdministrativeUnitByPage } from "../AdministrativeUnit/AdministrativeUnitService";
+import {
+  KeyboardDatePicker,
+  MuiPickersUtilsProvider,
+} from "@material-ui/pickers";
+import AdministrativeUnitSearchDialog from "./AdministrativeUnitSearchDialog";
+import SampleEditorDialog from "./SampleEditorDialog";
+import { withStyles } from "@material-ui/core/styles";
+import { useTranslation } from "react-i18next";
+import { searchByPage as getAllSuspectedLevel } from "../SuspectedLevelLevel/SuspectedLevelLevelService";
+import { searchByPage as getAllSuspectedType } from "../SuspectedType/SuspectedTypeService";
+import { searchByDto as getAllEpidemiologicalFactors } from "../EpidemiologicalFactors/EpidemiologicalFactorsService";
+import { suspectedLevelSearchByPage, epidemiologicalFactorsSearchByPage } from '../Sample/SampleService'
+import { getAllOrgByUserId } from "../User/UserService";
+import authService from "../../services/jwtAuthService";
+import UserRoles from "app/services/UserRoles";
+import Constant from '../Sample/Constant';
+import "react-toastify/dist/ReactToastify.css";
+const LightTooltip = withStyles((theme) => ({
+  tooltip: {
+    backgroundColor: theme.palette.common.white,
+    color: "rgba(0, 0, 0, 0.87)",
+    boxShadow: theme.shadows[1],
+    fontSize: 11,
+    marginBottom: "-1.5em",
+    marginLeft: "-1.5em",
+  },
+}))(Tooltip);
+
+function MaterialButton(props) {
+  const { t } = useTranslation();
+  const item = props.item;
+  return (
+    <div className="none_wrap">
+      <LightTooltip
+        title={t("general.editIcon")}
+        placement="right-end"
+        enterDelay={300}
+        leaveDelay={200}
+        PopperProps={{
+          popperOptions: {
+            modifiers: { offset: { enabled: true, offset: "10px, 0px" } },
+          },
+        }}
+      >
+        <IconButton size="small" onClick={() => props.onSelect(item, 0)}>
+          <Icon fontSize="small" color="primary">
+            edit
+          </Icon>
+        </IconButton>
+      </LightTooltip>
+      {/* <LightTooltip
+        title={t("general.deleteIcon")}
+        placement="right-end"
+        enterDelay={300}
+        leaveDelay={200}
+        PopperProps={{
+          popperOptions: {
+            modifiers: { offset: { enabled: true, offset: "10px, 0px" } },
+          },
+        }}
+      >
+       <IconButton size="small" onClick={() => props.onSelect(item, 1)}>
+          <Icon fontSize="small" color="error">
+            delete
+          </Icon>
+        </IconButton>
+      </LightTooltip> */}
+    </div>
+  );
+}
+
+toast.configure({
+  autoClose: 2000,
+  draggable: false,
+  limit: 3,
+});
+
+class SuspectedPersonDialog extends Component {
+  state = {
+    name: "",
+    giveName: "",
+    birthDate: "",
+    gender: "",
+    physicalAdminUnit: null,
+    residentAdminUnit: null,
+    epidemiologicalFactors: null,
+    suspectedLevel: null,
+    shouldOpenAdministrativeUnitsPopup: false,
+    shouldOpenSampleEditorDialog: false,
+    detailEpidemiologicalFactors: "",
+    samples: [],
+    wardOfResidence: null,
+    wardOfResidenceSearch: {},
+    districtOfResidence: null,
+    districtOfResidenceSearch: {},
+    provinceOfResidence: null,
+    isolationPlace: {},
+    provinceOfResidenceSearch: { pageIndex: 0, pageSize: 10000000, isGetAllCity: true },
+    shouldOpenPhysicalAdminUnitPopup: false,
+    shouldOpenResidentAdminUnitPopup: false,
+    rowSample: null,
+    formReadonly: {
+      personalInfo: false
+    }
+  };
+
+  listGender = [
+    { id: "M", name: "Nam" },
+    { id: "F", name: "Nữ" },
+    { id: "U", name: "Không xác định" },
+  ];
+
+  handleChange = (event) => {
+    this.setState({
+      [event.target.name]: event.target.value,
+    });
+  };
+
+  handleChangeGender = (event, source) => {
+    if (source === "gender") {
+      let { gender } = this.state;
+      this.setState({ gender: event.target.value });
+      return;
+    }
+  };
+
+  handleFormSubmit = () => {
+    let { id } = this.state;
+    let { t } = this.props;
+    this.setState({ isView: true });
+
+    if (this.validateForm() != null && this.validateForm() == true) {
+      toast.warning(this.validateForm())
+      this.setState({ isView: false })
+    } else {
+      if (id) {
+        updateItem({
+          ...this.state,
+        })
+          .then((response) => {
+            if (response.data != null && response.status == 200) {
+              this.setState({ isView: false });
+              toast.success(t("general.updateSuccess"));
+              this.props.handleOKEditClose();
+            }
+          })
+          .catch(() => {
+            toast.warning(t("general.error"));
+            this.setState({ isView: false })
+
+          });
+      } else {
+        addNewItem({
+          ...this.state,
+        })
+          .then((response) => {
+            if (response.data != null && response.status == 200) {
+              this.state.id = response.data.id;
+              this.setState({ ...this.state, isView: false });
+              toast.success(t("general.addSuccess"));
+              this.props.handleOKEditClose();
+            }
+          })
+          .catch(() => {
+            toast.warning(t("general.error"));
+            this.setState({ isView: false });
+          });
+      }
+    }
+  };
+
+  // handleSelectAdministrativeUnit = (administrativeUnit) => {
+  //   if (administrativeUnit && administrativeUnit.id) {
+  //     this.setState({ administrativeUnit });
+  //     this.handleChangeAdministrativeUnitPopupClose();
+  //   }
+  // };
+
+  handleSelectdministrativeUnit = (value, source) => {
+    if ("provinceOfResidence" == source) {
+      this.setState({ provinceOfResidence: value });
+      if (value != null) {
+        this.setState({ districtOfResidenceSearch: { pageIndex: 0, pageSize: 10000000, parentId: value.id } });
+      } else {
+        this.setState({ districtOfResidence: {} });
+        this.setState({ wardOfResidence: {} });
+        this.setState({ districtOfResidenceSearch: { pageIndex: 0, pageSize: 10000000 } });
+        this.setState({ wardOfResidenceSearch: { pageIndex: 0, pageSize: 10000000 } });
+      }
+    }
+    if ("districtOfResidence" == source) {
+      this.setState({ districtOfResidence: value });
+      if (value != null) {
+        this.setState({ wardOfResidenceSearch: { pageIndex: 0, pageSize: 10000000, parentId: value.id } });
+      } else {
+        this.setState({ wardOfResidence: {} });
+        this.setState({ wardOfResidenceSearch: { pageIndex: 0, pageSize: 10000000 } });
+      }
+    }
+    if ("wardOfResidence" == source) {
+      this.setState({ wardOfResidence: value });
+    }
+
+  }
+  selectIsolationHealthOrganization = (isolationPlace) => {
+    this.setState({ isolationPlace: isolationPlace }, function () { });
+  };
+  handleChangeAdministrativeUnitPopupClose = () => {
+    this.setState(
+      { shouldOpenAdministrativeUnitsPopup: false },
+      function () { }
+    );
+  };
+
+  componentDidMount() {
+    let { item } = this.props;
+    this.setState({ ...item }, () => {
+    });
+    if (!UserRoles.isAdmin()) {
+      this.getUserOrgType();
+    }
+    ValidatorForm.addValidationRule('whitespace', (value) => {
+      if (this.validateForm(value, 1)) {
+        return false;
+      }
+      return true;
+    });
+    ValidatorForm.addValidationRule('numberPhone', (value) => {
+      if (this.validateForm(value, 2)) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  getUserOrgType() {
+    let user = authService.getLoginUser()
+    if (user != null && !UserRoles.isAdmin()) {
+      getAllOrgByUserId(user.id).then(({ data }) => {
+        if (data != null && data.org != null) {
+          if (data.org.orgType == 1) {
+            this.setState({ formReadonly: { personalInfo: true } });
+          }
+          this.setState({ userOrgType: data.org.orgType })
+        }
+
+
+      });
+    }
+
+  }
+
+  handleChangeDate = (value, name) => {
+    this.setState({ [name]: value });
+  };
+
+  handleChangeText = (e, source) => {
+    e.preventDefault();
+    let { physicalAdminUnit, residentAdminUnit } = this.state;
+    if (source === "physicalAdminUnitName") {
+      physicalAdminUnit.name = e.target.value;
+      this.setState({
+        physicalAdminUnit: physicalAdminUnit,
+      });
+    }
+
+    if (source === "residentAdminUnitName") {
+      residentAdminUnit.name = e.target.value;
+      this.setState({
+        residentAdminUnit: residentAdminUnit,
+      });
+    }
+    this.setState({ [source]: e.target.value });
+  };
+
+  changeSelected = (value, source) => {
+    // this.setState({ [source]: value });
+    if (source === "gender") {
+      let gender = value.id;
+      this.setState({ gender: gender, genderObj: value });
+    }
+  };
+
+  shouldCloseSampleEditorDialog = () => {
+    this.setState({ shouldOpenSampleEditorDialog: false });
+  };
+
+  handleSelectSample = (sample) => {
+    let { samples } = this.state;
+    if (samples == null) {
+      samples = [];
+    }
+    samples.push(sample);
+    this.setState({ samples: samples }, () => {
+      this.shouldCloseSampleEditorDialog();
+    });
+  };
+
+  handleDialogClose = () => {
+    this.setState({ shouldOpenPhysicalAdminUnitPopup: false, shouldOpenResidentAdminUnitPopup: false })
+  }
+
+  handlePhysicalAdminUnit = (physicalAdminUnit) => {
+    this.setState({ physicalAdminUnit: physicalAdminUnit }, () => {
+      this.handleDialogClose();
+    })
+  }
+
+  handleResidentAdminUnit = (residentAdminUnit) => {
+    this.setState({ residentAdminUnit: residentAdminUnit }, () => {
+      this.handleDialogClose();
+    })
+  }
+
+  selectSuspectedLevel = (suspectedLevel) => {
+    this.setState({ suspectedLevel: suspectedLevel });
+  }
+
+  selectEpidemiologicalFactors = (epidemiologicalFactors) => {
+    this.setState({ epidemiologicalFactors: epidemiologicalFactors });
+  }
+
+  timeConverter(UNIX_timestamp) {
+    var a = new Date(UNIX_timestamp);
+    var months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+    var year = a.getFullYear();
+    var month = months[a.getMonth()];
+    var date = a.getDate();
+    var time = date + '/' + month + '/' + year;
+    return time;
+  }
+
+  validateForm(value, index) {
+    let whitespace = new RegExp(/[^\s]+/);
+    let numberPhoneVN = new RegExp(/(84|0[3|5|7|8|9])+([0-9]{8})\b/g)
+    if (!whitespace.test(value) && index == 1) {
+      return true
+    }
+    if (!numberPhoneVN.test(value) && index == 2) {
+      return true
+    }
+    return false
+  }
+
+  componentWillUnmount() {
+    ValidatorForm.removeValidationRule('whitespace');
+    ValidatorForm.removeValidationRule('numberPhone');
+
+  }
+
+  render() {
+    let { open, handleClose, handleOKEditClose, t, i18n, userOrg, item } =
+      this.props;
+    let { isView, shouldOpenSampleEditorDialog, isolationPlace, wardOfResidenceSearch, districtOfResidenceSearch, provinceOfResidence,
+      wardOfResidence, districtOfResidence, suspectedLevel, userOrgType, formReadonly, pneumoniaStatus,
+      epidemiologicalFactors, detailEpidemiologicalFactors, samples, rowSample, provinceOfResidenceSearch, feverStatus, coughStatus, shortnessOfBreath, soreThroat } = this.state;
+    let searchObject = { pageIndex: 0, pageSize: 10000000 }
+    let columns = [
+      {
+        title: t("general.action"),
+        field: "custom",
+        align: "left",
+        width: "50px",
+        headerStyle: {
+          padding: "5px",
+        },
+        cellStyle: {
+          padding: "5px",
+        },
+        render: (rowData) => {
+          if (userOrgType != 3) {
+            return (<MaterialButton
+              item={rowData}
+              onSelect={(rowData, method) => {
+                if (method === 0) {
+                  this.setState({ rowSample: rowData, shouldOpenSampleEditorDialog: true });
+                } else if (method === 1) {
+                  samples.splice(rowData.tableData.id, 1);
+                  this.setState({ samples: samples }, () => {
+                    console.log(this.state);
+                  });
+                } else {
+                  alert("Call Selected Here:" + rowData.id);
+                }
+              }}
+            />)
+          }
+        }
+
+        ,
+      },
+      {
+        title: t("sample.code"),
+        field: "code",
+        headerStyle: {
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "120px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Ngày lấy mẫu"),
+        field: "sampleDate",
+        align: "left",
+        headerStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        render: (rowData) => (
+          <p>
+            {(rowData.sampleDate) ? this.timeConverter(rowData.sampleDate) : <p></p>}
+          </p>
+        ),
+      },
+      {
+        title: t("Ngày gửi mẫu"),
+        field: "shipDate",
+        align: "left",
+        headerStyle: {
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        render: (rowData) => (
+          <p>
+            {(rowData.shipDate) ? this.timeConverter(rowData.shipDate) : <p></p>}
+
+          </p>
+        ),
+      },
+      {
+        title: t("Ngày làm xét nghiệm"),
+        field: "testingDate",
+        align: "left",
+        headerStyle: {
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        render: (rowData) => (
+          <p>
+            {(rowData.testingDate) ? this.timeConverter(rowData.testingDate) : <p></p>}
+
+          </p>
+        ),
+      },
+      {
+        title: t("Ngày có kết quả"),
+        field: "resultDate",
+        align: "left",
+        headerStyle: {
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        render: (rowData) => (
+          <p>
+            {(rowData.resultDate) ? this.timeConverter(rowData.resultDate) : <p></p>}
+
+          </p>
+        ),
+      },
+      {
+        title: t("Đơn vị xét nghiệm"),
+        field: "labTest.name",
+        align: "left",
+        headerStyle: {
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Đơn vị nhận mẫu"),
+        field: "sampleCollectOrg.name",
+        align: "left",
+        headerStyle: {
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Kết quả"),
+        field: "sampleResult",
+        align: "left",
+        render: rowData => {
+          if (rowData.sampleResult == 'Positive') return <span>Dương tính</span>;
+          else if (rowData.sampleResult == 'Negative') return <span>Âm tính</span>;
+          else if (rowData.sampleResult == 'Checking') return <span>Dương tính chờ xác nhận</span>;
+        },
+        headerStyle: {
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+      }
+    ];
+
+    return (
+      <Dialog open={open} maxWidth="md" fullWidth>
+        <ValidatorForm ref="form" onSubmit={this.handleFormSubmit} class="validator-form-scroll-dialog">
+          <DialogTitle
+            style={{ cursor: "move" }}
+            id="draggable-dialog-title"
+          >
+            <span className="mb-1">{t("general.saveUpdate")}</span>
+          </DialogTitle>
+          <DialogContent>
+            <Grid item container md={12} sm={12} xs={12} spacing={2}>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <TextValidator
+                  className="w-100"
+                  onChange={this.handleChange}
+                  name="name"
+                  value={this?.state?.name ? this.state.name : ""}
+                  label={
+                    <span className="font">
+                      <span style={{ color: "red" }}> * </span>
+                      {t("suspected_person.name")}
+                    </span>
+                  }
+                  size="small"
+                  type="text"
+                  inputProps={{
+                    readOnly: formReadonly.personalInfo
+                  }}
+                  placeholder=""
+                  validators={["required", 'whitespace']}
+                  errorMessages={[t("general.required"), 'phải nhập ký tự']}
+                />
+              </Grid>
+
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <FormControl fullWidth={true} size="small" variant="outlined">
+                  <InputLabel htmlFor="gender-simple">
+                    {t("suspected_person.gender")}
+                  </InputLabel>
+                  <Select
+                    variant="standard"
+                    value={this.state.gender ? this.state.gender : ""}
+                    label={t("user.gender")}
+                    onChange={(gender) =>
+                      this.handleChangeGender(gender, "gender")
+                    }
+                    inputProps={{
+                      name: "gender",
+                      id: "gender-simple",
+                      readOnly: formReadonly.personalInfo
+                    }}
+                  >
+                    {this.listGender.map((item) => {
+                      return (
+                        <MenuItem key={item.id} value={item.id}>
+                          {item.name}
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                  <KeyboardDatePicker
+                    size="small"
+                    className="w-100"
+                    id="mui-pickers-importDate"
+                    label={
+                      <span className="font">
+                        {t("suspected_person.birthDate")}
+                      </span>
+                    }
+                    inputProps={{
+                      readOnly: formReadonly.personalInfo
+                    }}
+                    type="text"
+                    autoOk={true}
+                    format="yyyy"
+                    value={this?.state?.birthDate ? this.state.birthDate : null}
+                    onChange={(date) =>
+                      this.handleChangeDate(date, "birthDate")
+                    }
+                    fullWidth
+                    invalidDateMessage={t("general.errorMessages_invalid_date")}
+                  />
+                </MuiPickersUtilsProvider>
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <TextValidator
+                  className="w-100 "
+                  label={
+                    <span>
+                      {t('CCCD/ CMT')}
+                    </span>
+                  }
+                  inputProps={{
+                    readOnly: formReadonly.personalInfo
+                  }}
+                  onChange={this.handleChange}
+                  type="text"
+                  name="idNumber"
+                  value={this.state?.idNumber}
+                />
+              </Grid>
+
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <TextValidator
+                  className="w-100 "
+                  label={
+                    <span>
+                      <span style={{ color: "red" }}> * </span>
+                      {t('Số điện thoại')}
+                    </span>
+                  }
+                  inputProps={{
+                    readOnly: formReadonly.personalInfo
+                  }}
+                  onChange={this.handleChange}
+                  type="text"
+                  name="phoneNumber"
+                  validators={["required", 'numberPhone']}
+                  errorMessages={[t("general.required"), 'Sai định dạng số điện thoại']}
+                  value={this.state?.phoneNumber}
+                />
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <AsynchronousAutocomplete
+                  label={
+                    <span className="font">
+                      <span style={{ color: "red" }}> * </span>
+                      {t("Tỉnh/Thành Phố")}
+                    </span>
+                  }
+                  disabled={formReadonly.personalInfo}
+                  searchFunction={getAdministrativeUnitByPage}
+                  searchObject={provinceOfResidenceSearch}
+                  value={provinceOfResidence ? provinceOfResidence : null}
+                  multiple={false}
+                  defaultValue={provinceOfResidence ? provinceOfResidence : null}
+                  displayLable={'name'}
+                  className="w-100"
+                  validators={["required"]}
+                  errorMessages={[t("general.required")]}
+                  onSelect={(value) => { this.handleSelectdministrativeUnit(value, "provinceOfResidence") }}
+                />
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <AsynchronousAutocomplete
+                  label={
+                    <span className="font">
+                      <span style={{ color: "red" }}> * </span>
+                      {t("Quận huyện")}
+                    </span>
+                  }
+                  searchFunction={getAdministrativeUnitByPage}
+                  searchObject={districtOfResidenceSearch}
+                  value={districtOfResidence ? districtOfResidence : null}
+                  multiple={false}
+                  disabled={formReadonly.personalInfo}
+                  defaultValue={districtOfResidence ? districtOfResidence : null}
+                  displayLable={'name'}
+                  className="w-100"
+                  validators={["required"]}
+                  errorMessages={[t("general.required")]}
+                  onSelect={(value) => { this.handleSelectdministrativeUnit(value, "districtOfResidence") }}
+                />
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <AsynchronousAutocomplete
+                  label={
+                    <span className="font">
+                      <span style={{ color: "red" }}> * </span>
+                      {t("Xã/Phường")}
+                    </span>
+                  }
+                  searchFunction={getAdministrativeUnitByPage}
+                  searchObject={wardOfResidenceSearch}
+                  value={wardOfResidence ? wardOfResidence : null}
+                  multiple={false}
+                  disabled={formReadonly.personalInfo}
+                  defaultValue={wardOfResidence ? wardOfResidence : null}
+                  displayLable={'name'}
+                  className="w-100"
+                  validators={["required"]}
+                  errorMessages={[t("general.required")]}
+                  onSelect={(value) => { this.handleSelectdministrativeUnit(value, "wardOfResidence") }}
+                />
+              </Grid>
+
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <AsynchronousAutocomplete label={t("Mức độ nghi nhiễm")}
+                  searchFunction={suspectedLevelSearchByPage}
+                  searchObject={searchObject}
+                  value={suspectedLevel ? suspectedLevel : null}
+                  multiple={false}
+                  defaultValue={suspectedLevel ? suspectedLevel : null}
+                  displayLable={'name'}
+                  className="w-100"
+                  disabled={formReadonly.personalInfo}
+                  onSelect={this.selectSuspectedLevel}
+                />
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <TextValidator
+                  className="w-100"
+                  onChange={this.handleChange}
+                  name="career"
+                  value={this?.state?.career ? this.state.career : ""}
+                  label={
+                    <span className="font">
+                      {/* <span style={{ color: "red" }}> * </span> */}
+                      {t("suspected_person.career")}
+                    </span>
+                  }
+                  size="small"
+                  type="text"
+                  placeholder=""
+                // validators={["required"]}
+                // errorMessages={[t("general.required")]}
+                />
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <TextValidator
+                  className="w-100 "
+                  label={
+                    <span>
+                      {t('Địa chỉ chi tiết hiện tại')}
+                    </span>
+                  }
+                  onChange={this.handleChange}
+                  type="text"
+                  name="detailAddress"
+                  value={this.state?.detailAddress}
+                  inputProps={{
+                    readOnly: formReadonly.personalInfo
+                  }}
+                // validators={['required']}
+                // errorMessages={[t('general.required')]}
+                />
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <AsynchronousAutocomplete
+                  label={t("Chọn đơn vị cách ly")}
+                  searchFunction={healthOrganizationSearchByPage}
+                  searchObject={{ pageIndex: 0, pageSize: 10000000, orgType: 3, isGetAll: true }}
+                  multiple={false}
+                  value={isolationPlace ? isolationPlace : null}
+                  defaultValue={isolationPlace ? isolationPlace : null}
+                  displayLable={"name"}
+                  variant="standard"
+                  className="mb-16 w-100"
+                  disabled={formReadonly.personalInfo}
+                  onSelect={this.selectIsolationHealthOrganization}
+                />
+              </Grid>
+              <Grid item lg={3} md={3} sm={6} xs={12}>
+                <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                  <KeyboardDatePicker
+                    size="small"
+                    className="w-100"
+                    id="mui-pickers-importDate"
+                    label={
+                      <span className="font">
+                        {t("Ngày tiếp xúc cuối cùng")}
+                      </span>
+                    }
+                    inputProps={{
+                      readOnly: formReadonly.personalInfo
+                    }}
+                    type="text"
+                    autoOk={true}
+                    format="dd/MM/yyyy"
+                    value={this?.state?.lastContactDate ? this.state.lastContactDate : null}
+                    onChange={(date) =>
+                      this.handleChangeDate(date, "lastContactDate")
+                    }
+                    fullWidth
+                    invalidDateMessage={t("general.errorMessages_invalid_date")}
+                  />
+                </MuiPickersUtilsProvider>
+              </Grid>
+              <Grid item sm={3} xs={12}>
+                <FormControl fullWidth={true}>
+                  <InputLabel htmlFor="feverStatus-simple">{t('Triệu chứng sốt')}</InputLabel>
+                  <Select
+                    value={feverStatus ? feverStatus : ''}
+                    onChange={feverStatus => this.handleChange(feverStatus)}
+                    inputProps={{
+                      name: "feverStatus",
+                      id: "feverStatus-simple",
+                      readOnly: formReadonly.personalInfo
+                    }}
+                  >
+                    {Constant.statusSymptom.map(item => {
+                      return <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>;
+                    })}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+
+              <Grid item sm={3} xs={12}>
+                <FormControl fullWidth={true}>
+                  <InputLabel htmlFor="coughStatus-simple">{t('Triệu chứng ho')}</InputLabel>
+                  <Select
+                    value={coughStatus ? coughStatus : ''}
+                    onChange={coughStatus => this.handleChange(coughStatus)}
+                    inputProps={{
+                      name: "coughStatus",
+                      id: "coughStatus-simple",
+                      readOnly: formReadonly.personalInfo
+                    }}
+                  >
+                    {Constant.statusSymptom.map(item => {
+                      return <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>;
+                    })}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item sm={3} xs={12}>
+                <FormControl fullWidth={true}>
+                  <InputLabel htmlFor="shortnessOfBreath-simple">{t('Triệu chứng khó thở')}</InputLabel>
+                  <Select
+                    value={shortnessOfBreath ? shortnessOfBreath : ''}
+                    onChange={shortnessOfBreath => this.handleChange(shortnessOfBreath)}
+                    inputProps={{
+                      name: "shortnessOfBreath",
+                      id: "shortnessOfBreath-simple",
+                      readOnly: formReadonly.personalInfo
+                    }}
+                  >
+                    {Constant.statusSymptom.map(item => {
+                      return <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>;
+                    })}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item sm={3} xs={12}>
+                <FormControl fullWidth={true}>
+                  <InputLabel htmlFor="soreThroat-simple">{t('Triệu chứng đau họng')}</InputLabel>
+                  <Select
+                    value={soreThroat ? soreThroat : ''}
+                    onChange={soreThroat => this.handleChange(soreThroat)}
+                    inputProps={{
+                      name: "soreThroat",
+                      id: "soreThroat-simple",
+                      readOnly: formReadonly.personalInfo
+                    }}
+                  >
+                    {Constant.statusSymptom.map(item => {
+                      return <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>;
+                    })}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item sm={3} xs={12}>
+                <FormControl fullWidth={true}>
+                  <InputLabel htmlFor="pneumoniaStatus-simple">{t('Triệu chứng viêm phổi')}</InputLabel>
+                  <Select
+                    value={pneumoniaStatus ? pneumoniaStatus : ''}
+                    onChange={pneumoniaStatus => this.handleChange(pneumoniaStatus)}
+                    inputProps={{
+                      name: "pneumoniaStatus",
+                      id: "pneumoniaStatus-simple",
+                      readOnly: formReadonly.personalInfo
+                    }}
+                  >
+                    {Constant.statusSymptom.map(item => {
+                      return <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>;
+                    })}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item lg={6} md={6} sm={6} xs={12}>
+                <AsynchronousAutocomplete label={<span> <span style={{ color: "red" }}> * </span> {t("Yếu tố dịch tễ")}</span>}
+                  searchFunction={epidemiologicalFactorsSearchByPage}
+                  searchObject={searchObject}
+                  value={epidemiologicalFactors ? epidemiologicalFactors : null}
+                  defaultValue={epidemiologicalFactors ? epidemiologicalFactors : null}
+                  multiple={false}
+                  displayLable={'name'}
+                  className="w-100"
+                  validators={["required"]}
+                  errorMessages={[t("general.required")]}
+                  onSelect={this.selectEpidemiologicalFactors}
+                  disabled={formReadonly.personalInfo}
+                />
+              </Grid>
+              <Grid item lg={12} md={12} sm={12} xs={12}>
+                <TextValidator
+                  className="w-100 "
+                  label={
+                    <span>
+                      {t('Yếu tố dịch tễ chi tiết (mô tả)')}
+                    </span>
+                  }
+                  onChange={this.handleChange}
+                  type="text"
+                  name="detailEpidemiologicalFactors"
+                  value={this.state?.detailEpidemiologicalFactors}
+                  inputProps={{
+                    readOnly: formReadonly.personalInfo
+                  }}
+                // validators={['required']}
+                // errorMessages={[t('general.required')]}
+                />
+              </Grid>
+              {(userOrgType == 0 || userOrgType == 2 || UserRoles.isAdmin()) && <Grid item md={12} sm={12} xs={12}>
+                <Button
+                  className=""
+                  color="primary"
+                  onClick={() => {
+                    this.setState({ shouldOpenSampleEditorDialog: true, rowSample: null });
+                  }}
+                >
+                  Thêm mẫu xét nghiệm
+                </Button>
+              </Grid>}
+
+              {shouldOpenSampleEditorDialog && (
+                <SampleEditorDialog
+                  open={shouldOpenSampleEditorDialog}
+                  item={rowSample}
+                  handleSelect={this.handleSelectSample}
+                  handleClose={this.shouldCloseSampleEditorDialog}
+                  t={t}
+                  i18n={i18n}
+                />
+              )}
+
+              <Grid item md={12} sm={12} xs={12}>
+                <MaterialTable
+                  title={t("general.list")}
+                  data={samples ? samples : []}
+                  columns={columns}
+                  localization={{
+                    body: {
+                      emptyDataSourceMessage: `${t(
+                        "general.emptyDataMessageTable"
+                      )}`,
+                    },
+                    toolbar: {
+                      nRowsSelected: `${t("general.selects")}`,
+                    },
+                  }}
+                  options={{
+                    selection: false,
+                    actionsColumnIndex: -1,
+                    paging: false,
+                    search: false,
+                    headerStyle: {
+                      backgroundColor: "#358600",
+                      color: "#fff",
+                      whiteSpace: "nowrap",
+                    },
+                    rowStyle: (rowData) => ({
+                      backgroundColor:
+                        rowData.tableData.id % 2 === 1 ? "#EEE" : "#FFF",
+                    }),
+                    maxBodyHeight: "280px",
+                    minBodyHeight: "280px",
+                    padding: "dense",
+                    toolbar: false,
+                  }}
+                  components={{
+                    Toolbar: (props) => <MTableToolbar {...props} />,
+                  }}
+                  onSelectionChange={(rows) => {
+                    this.data = rows;
+                  }}
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions spacing={4} className="flex flex-end flex-middle">
+            <Button
+              className="mb-8"
+              variant="contained"
+              color="secondary"
+              onClick={() => handleClose()}
+            >
+              {t("general.cancel")}
+            </Button>
+            {!isView && (
+              <Button
+                className="mb-8 mr-30"
+                variant="contained"
+                color="primary"
+                type="submit"
+              >
+                {t("general.save")}
+              </Button>
+            )}
+          </DialogActions>
+        </ValidatorForm>
+      </Dialog>
+    );
+  }
+}
+
+export default SuspectedPersonDialog;

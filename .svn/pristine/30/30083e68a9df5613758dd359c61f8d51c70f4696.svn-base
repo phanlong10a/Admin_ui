@@ -1,0 +1,72 @@
+import React from "react";
+import { Redirect } from "react-router-dom";
+import homeRoutes from "./views/home/HomeRoutes";
+import sessionRoutes from "./views/sessions/SessionRoutes";
+import dashboardRoutes from "./views/dashboard/DashboardRoutes";
+import UserRoutes from "./views/User/UserRoutes";
+import roleRoutes from "./views/Role/RoleRoutes";
+import ConstantList from "./appConfig";
+import MenuRoutes from "./views/Menus/MenuRoutes";
+import Sample from "./views/Sample/SampleRoutes";
+import AdministrativeUnitRoutes from "./views/AdministrativeUnit/AdministrativeUnitRoutes";
+import SuspectedTypeRoutes from "./views/SuspectedType/SuspectedTypeRoutes";
+import EpidemiologicalFactorsRoutes from "./views/EpidemiologicalFactors/EpidemiologicalFactorsRoutes";
+import IsolationCenterRoutes from "./views/IsolationCenter/IsolationCenterRoutes";
+import SuspectedLevelLevelRoutes from "./views/SuspectedLevelLevel/SuspectedLevelLevelRoutes";
+import suspectedPersonRoutes from './views/SuspectedPerson/SuspectedPersonRoutes';
+import HealthOrgRoutes from './views/HealthOrg/HealthOrgRoutes';
+import ReportRoutes from './views/Report/ReportRoutes';
+import pageLayoutRoutes from "./views/page-layouts/PageLayoutRoutees";
+import HealthResourceRoutes from "./views/HealthResource/HealthResourceRoutes";
+import HealthResourceCategoryRoutes from "./views/HealthResourceCategory/HealthResourceCategoryRoutes";
+import ReportNumberOfTestsByStatus from './views/ReportNumberOfTestsByStatus/reportNumberOfTestsByStatusRoutes';
+import ReportSampleByHealthOrgRoutes from './views/ReportSampleByHealthOrg/ReportSampleByHealthOrgRoutes';
+import SampleReportBySuspectedLevel from './views/ReportSampleBySuspectedLevel/ReportSampleBySuspectedLevelRoutes';
+import ReportSampleByCollectOrgRoutes from "./views/ReportSampleByCollectOrg/ReportSampleByCollectOrgRoutes";
+import PooledSampleRoutes from './views/PooledSample/PooledSampleRoutes';
+import ReportNumberOfTestsByResultRoutes from './views/ReportNumberOfTestsByResult/ReportNumberOfTestsByResultRoutes';
+
+const redirectRoute = [
+  {
+    path: ConstantList.ROOT_PATH,
+    exact: true,
+    component: () => <Redirect to={ConstantList.HOME_PAGE} />, //Luôn trỏ về HomePage được khai báo trong appConfig
+  },
+];
+
+const errorRoute = [
+  {
+    component: () => <Redirect to={ConstantList.ROOT_PATH + "session/404"} />,
+  },
+];
+
+const routes = [
+  ...homeRoutes,
+  ...sessionRoutes,
+  ...dashboardRoutes,
+  ...EpidemiologicalFactorsRoutes,
+  ...IsolationCenterRoutes,
+  ...suspectedPersonRoutes,
+  ...UserRoutes,
+  ...roleRoutes,
+  ...MenuRoutes,
+  ...Sample,
+  ...SuspectedLevelLevelRoutes,
+  ...SuspectedTypeRoutes,
+  ...AdministrativeUnitRoutes,
+  ...HealthOrgRoutes,
+  ...ReportRoutes,
+  ...pageLayoutRoutes,
+  ...redirectRoute,
+  ...HealthResourceRoutes,
+  ...HealthResourceCategoryRoutes,
+  ...ReportNumberOfTestsByStatus,
+  ...ReportSampleByHealthOrgRoutes,
+  ...SampleReportBySuspectedLevel,
+  ...ReportSampleByCollectOrgRoutes,
+  ...PooledSampleRoutes,
+  ...ReportNumberOfTestsByResultRoutes,
+  ...errorRoute,
+];
+
+export default routes;

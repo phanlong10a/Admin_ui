@@ -1,0 +1,16 @@
+import { EgretLoadable } from "egret";
+import ConstantList from "../../appConfig";
+import { useTranslation, withTranslation, Trans } from 'react-i18next';
+const Analytics = EgretLoadable({
+  loader: () => import("../dashboard/Analytics")
+});
+const ViewComponent = withTranslation()(Analytics);
+const ReportRoutes = [
+  {
+    path: ConstantList.ROOT_PATH + "report",
+    exact: true,
+    component: ViewComponent
+  }
+];
+
+export default ReportRoutes;

@@ -1,0 +1,302 @@
+import React, { Component } from "react";
+import {
+  Dialog,
+  Button,
+  Grid,
+  DialogActions,
+  FormControlLabel,
+  Switch,
+  Checkbox,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+} from "@material-ui/core";
+import { ValidatorForm, TextValidator } from "react-material-ui-form-validator";
+import { checkCode, updateUser, addNew, update } from "./HealthOrgService";
+import SelectParentPopup from "./SelectParentPopup";
+import { generateRandomId } from "utils";
+import Autocomplete from "@material-ui/lab/Autocomplete";
+import Constant from './Constant';
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+toast.configure({
+  autoClose: 2000,
+  draggable: false,
+  limit: 3,
+});
+
+class HealthOrgEditorDialog extends Component {
+  state = {
+    name: "",
+    code: "",
+    description: "",
+    isExternalOrg: false,
+    isActive: false,
+    shouldOpenSelectParentPopup: false,
+  };
+
+  handleChange = (event, source) => {
+    event.persist();
+    if (source === "isExternalOrg") {
+      this.setState({ isExternalOrg: event.target.checked });
+      return;
+    }
+    this.setState({
+      [event.target.name]: event.target.value,
+    });
+  };
+
+  handleChangeType =(event,source)=>{
+    if(source==="orgType"){
+      this.setState({[source]: event.target.value},()=>console.log(this.state));
+      return;
+    }
+    if (source === "isExternalOrg") {
+      this.setState({ isExternalOrg: event.target.checked });
+      return;
+    }
+  }
+
+  handleFormSubmit = () => {
+    let { id } = this.state;
+    let { code } = this.state;
+      checkCode(id, code).then((result) => {
+        //Nếu trả về true là code đã được sử dụng
+        if (result.data) {
+          alert("Code đã được sử dụng");
+        } else {
+          //Nếu trả về false là code chưa sử dụng có thể dùng
+          if (id) {
+            update({
+              ...this.state,
+            }).then(() => {
+              this.props.handleOKEditClose();
+            });
+          } else {
+            addNew({
+              ...this.state,
+            }).then(() => {
+              this.props.handleOKEditClose();
+            });
+          }
+        }
+      });
+  };
+  openParentPopup = (event) => {
+    this.setState({ shouldOpenSelectParentPopup: true });
+  };
+  handleSelectParent = (itemParent) => {
+    let { t } = this.props;
+    let { id } = this.state;
+    let { code, parent } = this.state;
+    let idClone = id;
+    let { item } = this.state;
+    if (id) {
+      let isCheck = false;
+      let parentClone = itemParent;
+      let children = this.props.item;
+      // if(typeof)
+      if (children.parentId === null && children.id == parentClone.id) {
+        isCheck = true;
+      }
+      while (parentClone != null) {
+        if (parentClone.id == children.id) {
+          isCheck = true;
+          break;
+        } else {
+          parentClone = parentClone.parent;
+        }
+      }
+      if (isCheck) {
+        alert(t("user.warning_parent"));
+        return;
+      }
+    }
+    //alert(parent.name);
+    this.setState({ parent: itemParent });
+    this.setState({ shouldOpenSelectParentPopup: false });
+    //this.setState({shouldOpenSelectParentPopup:true});
+  };
+
+  handleDialogClose = () => {
+    this.setState({ shouldOpenSelectParentPopup: false });
+  };
+
+  componentWillMount() {
+    //getUserById(this.props.uid).then(data => this.setState({ ...data.data }));
+    let { open, handleClose, item } = this.props;
+    // console.log(this.props.item)
+    this.setState(item, () => {
+      console.log(this.state.item);
+    });
+  }
+
+  validateForm(value) {
+    let whitespace = new RegExp(/[^\s]+/);
+    if(!whitespace.test(value)) {
+      return true
+    }
+    return false
+  }
+
+  componentDidMount() {
+    ValidatorForm.addValidationRule('whitespace', (value) => {
+      if (this.validateForm(value)) {
+          return false;
+      }
+      return true;
+    });
+  }
+
+  componentWillUnmount() {
+    ValidatorForm.removeValidationRule('whitespace');
+  }
+
+  render() {
+    let { open, handleClose, handleOKEditClose, t, i18n } = this.props;
+    let { id, name, code, description, isExternalOrg } = this.state;
+
+    return (
+      <Dialog open={open} fullWidth maxWidth="sm">
+        <div className="p-24">
+          <h4 className="">{id ? t("Cập nhật") : t("Thêm mới")}</h4>
+          <ValidatorForm ref="form" onSubmit={this.handleFormSubmit}>
+            <Grid className="" container spacing={4}>
+              <Grid item sm={12} xs={12}>
+                <TextValidator
+                  className="w-100"
+                  label={<span className="font">
+                    <span style={{ color: "red" }}> * </span>
+                    {t("Mã đơn vị")}
+                  </span>}
+                  onChange={this.handleChange}
+                  type="text"
+                  name="code"
+                  value={code}
+                  validators={["required", 'whitespace']}
+                  errorMessages={["Đây là trường bắt buộc", 'phải nhập ký tự']}
+                />
+              </Grid>
+              <Grid item sm={12} xs={12}>
+                <TextValidator
+                  className="w-100"
+                  label={<span className="font">
+                    <span style={{ color: "red" }}> * </span>
+                    {t("Tên Đơn Vị")}
+                  </span>}
+                  onChange={this.handleChange}
+                  type="text"
+                  name="name"
+                  value={name}
+                  validators={["required", 'whitespace']}
+                  errorMessages={["Đây là trường bắt buộc", 'phải nhập ký tự']}
+                />
+              </Grid>
+              <Grid item sm={12} xs={12}>
+                <FormControl fullWidth={true}>
+                  <InputLabel htmlFor="gender-simple">
+                    {t("Loại đơn vị")}
+                  </InputLabel>
+                  <Select
+                    value={typeof this.state.orgType != "undefined" ? this.state.orgType : ""}
+                    onChange={(orgType) =>
+                      this.handleChangeType(orgType, "orgType")
+                    }
+                    inputProps={{
+                      name: "orgType",
+                      id: "orgType-simple",
+                    }}
+                  >
+                    {Constant.listOrgType.map((item) => {
+                      return (
+                        <MenuItem key={item.id} value={item.id}>
+                          {item.name}
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item sm ={12} xs={12}>
+              <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={isExternalOrg}
+                      onChange={(isExternalOrg) => this.handleChangeType(isExternalOrg, "isExternalOrg")}
+                      value="isExternalOrg"
+                    />
+                  }
+                  label="Là đơn vị ngoại tỉnh"
+                />
+              </Grid>
+              <Grid item sm={12} xs={12}>
+                <Button
+                  size="small"
+                  style={{ float: "right" }}
+                  variant="contained"
+                  color="primary"
+                  onClick={this.openParentPopup}
+                >
+                  {t("general.select")}
+                </Button>
+                <TextValidator
+                  size="small"
+                  // InputLabelProps={{ shrink: true }}
+                  style={{ width: "85%" }}
+                  InputProps={{
+                    readOnly: true,
+                  }}
+                  label={
+                    <span>
+                      <span style={{ color: "red" }}></span>
+                      {t("Đơn vị tuyến trên")}
+                    </span>
+                  }
+                  // className="w-80"
+                  value={
+                    this.state.parent != null ? this.state.parent.name : ""
+                  }
+                />
+
+                {this.state.shouldOpenSelectParentPopup && (
+                  <SelectParentPopup
+                    open={this.state.shouldOpenSelectParentPopup}
+                    handleSelect={this.handleSelectParent}
+                    selectedItem={
+                      this.state.item != null && this.state.item.parent != null
+                        ? this.state.item.parent
+                        : {}
+                    }
+                    handleClose={this.handleDialogClose}
+                    t={t}
+                    i18n={i18n}
+                  />
+                )}
+              </Grid>
+            </Grid>
+
+            <DialogActions style={{ paddingRight: "0px" }}>
+              <div className="flex flex-space-between flex-middle mt-24">
+                <Button
+                  variant="contained"
+                  className="mr-12"
+                  color="secondary"
+                  onClick={() => this.props.handleClose()}
+                >
+                  {t("Huỷ")}
+                </Button>
+                <Button variant="contained" color="primary" type="submit">
+                  {t("Lưu")}
+                </Button>
+              </div>
+            </DialogActions>
+          </ValidatorForm>
+        </div>
+      </Dialog>
+    );
+  }
+}
+
+export default HealthOrgEditorDialog;

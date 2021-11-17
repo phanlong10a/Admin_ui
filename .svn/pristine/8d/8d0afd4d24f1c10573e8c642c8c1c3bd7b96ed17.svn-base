@@ -1,0 +1,17 @@
+import { EgretLoadable } from "egret";
+import ConstantList from "../../appConfig";
+import { useTranslation, withTranslation, Trans } from 'react-i18next';
+const ReportSampleByCollectOrg = EgretLoadable({
+  loader: () => import("./ReportSampleByCollectOrg")
+});
+const ViewComponent = withTranslation()(ReportSampleByCollectOrg);
+
+const ReportSampleByCollectOrgRoutes = [
+  {
+    path:  ConstantList.ROOT_PATH+"report/reportSampleByCollectOrg",
+    exact: true,
+    component: ViewComponent
+  }
+];
+
+export default ReportSampleByCollectOrgRoutes;

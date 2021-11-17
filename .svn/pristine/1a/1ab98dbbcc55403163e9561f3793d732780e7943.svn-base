@@ -1,0 +1,18 @@
+import { EgretLoadable } from "egret";
+import ConstantList from "../../appConfig";
+import { useTranslation, withTranslation, Trans } from 'react-i18next';
+
+const PooledSample = EgretLoadable({
+  loader: () => import('./PooledSample')
+})
+const ViewPooledSampleComponent = withTranslation()(PooledSample);
+
+const SampleRoutes = [
+  {
+    path: ConstantList.ROOT_PATH + "sample_group",
+    exact: true,
+    component: ViewPooledSampleComponent
+  }
+];
+
+export default SampleRoutes;

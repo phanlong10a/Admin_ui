@@ -1,0 +1,259 @@
+import React, { Component } from "react";
+import { Grid, TextField, Button } from "@material-ui/core";
+import Autocomplete from "@material-ui/lab/Autocomplete";
+
+import { reportSampleByHealthOrg, exportExcelReportSampleByHealthOrg } from "./ReportSampleByHealthOrgService";
+import { healthOrganizationSearchByPage } from "../Sample/SampleService";
+
+
+import { Breadcrumb } from "egret";
+import TableCustom from "./TableCustom";
+import DateFnsUtils from "@date-io/date-fns";
+import {
+  MuiPickersUtilsProvider,
+  KeyboardDatePicker,
+} from "@material-ui/pickers";
+
+class ReportNumberOfTestsByStatus extends Component {
+  state = {
+    keyword: "",
+    rowsPerPage: 10,
+    page: 0,
+    itemList: [],
+    totalElements: 0,
+    labTestList: [],
+  };
+
+  handleTextChange = (event) => {
+    this.setState({ keyword: event.target.value }, function () { });
+  };
+
+  handleKeyDownEnterSearch = (e) => {
+    if (e.key === "Enter") {
+      this.search();
+    }
+  };
+
+  setPage = (page) => {
+    this.setState({ page }, function () {
+      this.updatePageData();
+    });
+  };
+
+  setRowsPerPage = (event) => {
+    this.setState({ rowsPerPage: event.target.value, page: 0 }, function () {
+      this.updatePageData();
+    });
+  };
+
+  handleChangePage = (event, newPage) => {
+    this.setPage(newPage);
+  };
+  handleDateChange = (event, source) => {
+    if (source === "toDate" || source === "fromDate") {
+      if (source === "fromDate" && event != null) {
+        event.setHours("00");
+        event.setMinutes("00");
+        event.setSeconds("00");
+      }
+      if (source === "toDate" && event != null) {
+        event.setHours("23");
+        event.setMinutes("59");
+        event.setSeconds("00");
+      }
+      this.setState({ [source]: event }, () => {
+        this.search()
+      })
+    }
+  }
+  search() {
+    this.setState({ page: 0 }, function () {
+      let { labTest } = this.state;
+      var date = new Date("2000/01/01");
+      var searchObject = {};
+      searchObject.text = this.state.keyword;
+      searchObject.pageIndex = this.state.page + 1;
+      searchObject.pageSize = this.state.rowsPerPage;
+      searchObject.fromDate = this.state.fromDate;
+      searchObject.toDate = this.state.toDate;
+      if (labTest != null) {
+        searchObject.labTest = labTest;
+      }
+      reportSampleByHealthOrg(searchObject).then(({ data }) => {
+        this.setState({
+          itemList: [...data],
+          totalElements: data.totalElements,
+        });
+      });
+    });
+  }
+
+  updatePageData = () => {
+    var date = new Date("2000/01/01");
+    let { labTest } = this.state;
+    var searchObject = {};
+    searchObject.text = this.state.keyword;
+    searchObject.pageIndex = this.state.page;
+    searchObject.pageSize = this.state.rowsPerPage;
+    searchObject.fromDate = this.state.fromDate;
+    searchObject.toDate = this.state.toDate;
+    if (labTest != null) {
+      searchObject.labTest = labTest;
+    }
+    reportSampleByHealthOrg(searchObject).then(({ data }) => {
+      this.setState({
+        itemList: [...data],
+        totalElements: data.totalElements,
+      });
+    });
+  };
+
+  healthOrganizationSearchByPage = () => {
+    let obj = { pageIndex: 0, pageSize: 1000000, orgType: 1 };
+    healthOrganizationSearchByPage(obj).then(({ data }) => {
+      this.setState({ labTestList: data?.content });
+    });
+  };
+
+  componentDidMount() {
+    this.updatePageData();
+    this.healthOrganizationSearchByPage();
+  }
+
+  selectHealthOrganization = (labTest) => {
+    this.setState({ labTest: labTest }, function () {
+      this.search();
+    });
+  };
+
+  exportExcel = () => {
+    var date = new Date("2000/01/01");
+    let { labTest } = this.state;
+    var searchObject = {};
+    searchObject.text = this.state.keyword;
+    searchObject.pageIndex = 0;
+    searchObject.pageSize = 10000;
+    searchObject.fromDate = this.state.fromDate ? this.state.fromDate : date;
+    searchObject.toDate = this.state.toDate ? this.state.toDate : new Date();
+    if (labTest != null) {
+      searchObject.labTest = labTest;
+    }
+
+    exportExcelReportSampleByHealthOrg(searchObject).then((result) => {
+      const url = window.URL.createObjectURL(
+        new Blob([result.data], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        })
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "Báo Cáo Tổng Hợp Mẫu Theo Phòng Xét Nghiệm.xlsx");
+      document.body.appendChild(link);
+      link.click();
+    }).catch((err) => {
+      alert('Đã có lỗi')
+    });
+  }
+
+  render() {
+    const { t, i18n } = this.props;
+    let { itemList, labTestList } = this.state;
+
+    return (
+      <div className="m-sm-30">
+        <div className="mb-sm-30">
+          <Breadcrumb
+            routeSegments={[
+              { name: t("report.title") },
+              { name: t("reportSampleByHealthOrgDto.title") },
+            ]}
+          />
+        </div>
+
+        <Grid container spacing={3}>
+          <Grid item xs={12} container spacing={2}>
+            <Grid item md={3} sm={4} xs={12}>
+              <Autocomplete
+                options={labTestList}
+                getOptionLabel={(option) => option.name}
+                id="debug"
+                onChange={(event, value) => {
+                  this.selectHealthOrganization(value);
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Tìm kiếm đơn vị xét nghiệm" />
+                )}
+              />
+            </Grid>
+            <Grid item md={2} sm={4} xs={12}>
+              <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                <KeyboardDatePicker
+                  size="small"
+                  className="w-100"
+                  margin="none"
+                  id="date-picker-dialog"
+                  label={
+                    <span>
+                      <span style={{ color: "red" }}></span>
+                      {t("Từ ngày")}
+                    </span>
+                  }
+                  inputVariant="standard"
+                  type="text"
+                  autoOk={true}
+                  style={{ marginTop: '3px' }}
+                  format="dd/MM/yyyy"
+                  value={this.state.fromDate ? this.state.fromDate : null}
+                  onChange={(value) => this.handleDateChange(value, "fromDate")}
+                  KeyboardButtonProps={{
+                    "aria-label": "change date",
+                  }}
+                />
+              </MuiPickersUtilsProvider>
+            </Grid>
+            <Grid item md={2} sm={4} xs={12}>
+              <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                <KeyboardDatePicker
+                  size="small"
+                  className="w-100"
+                  margin="none"
+                  style={{ marginTop: '3px' }}
+                  id="date-picker-dialog"
+                  label={
+                    <span>
+                      <span style={{ color: "red" }}></span>
+                      {t("Đến ngày")}
+                    </span>
+                  }
+                  inputVariant="standard"
+                  type="text"
+                  autoOk={true}
+                  format="dd/MM/yyyy"
+                  value={this.state.toDate ? this.state.toDate : null}
+                  onChange={(value) => this.handleDateChange(value, "toDate")}
+                  KeyboardButtonProps={{
+                    "aria-label": "change date",
+                  }}
+                />
+              </MuiPickersUtilsProvider>
+            </Grid>
+            <Grid>
+              <Button
+                className="mt-10 ml-8"
+                variant="contained"
+                color="primary"
+                onClick={this.exportExcel}
+              >
+                Xuất Excel
+              </Button>
+            </Grid>
+          </Grid>
+          <Grid item xs={12}>
+            <TableCustom title={t("general.list")} data={itemList} t={t} />
+          </Grid>
+        </Grid>
+      </div>
+    );
+  }
+}
+export default ReportNumberOfTestsByStatus;

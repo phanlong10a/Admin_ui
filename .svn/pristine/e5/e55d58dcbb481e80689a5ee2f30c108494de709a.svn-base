@@ -1,0 +1,87 @@
+import React from "react";
+import { makeStyles } from "@material-ui/core/styles";
+import Table from "@material-ui/core/Table";
+import TableBody from "@material-ui/core/TableBody";
+import TableCell from "@material-ui/core/TableCell";
+import TableContainer from "@material-ui/core/TableContainer";
+import TableHead from "@material-ui/core/TableHead";
+import TableRow from "@material-ui/core/TableRow";
+import Paper from "@material-ui/core/Paper";
+
+const useStyles = makeStyles({
+  table: {
+    minWidth: 700,
+  },
+});
+
+function ccyFormat(num) {
+  let number = new Number(num);
+  if (number != null) {
+    let plainNumber = number.toFixed(1).replace(/\d(?=(\d{3})+\.)/g, "$&,");
+    return plainNumber.substr(0, plainNumber.length - 2);
+  }
+}
+
+export default function TableCustom(props) {
+  const classes = useStyles();
+  const { data, t } = props;
+
+  let total = {};
+  total.total = 0;
+  total.totalPresent = 0;
+  total.totalDraft = 0;
+  total.totalPending = 0;
+  total.totalAccepted = 0;
+
+  if(data) {
+    data.map(item => {
+      total.total += item.totalSample;
+      total.totalPresent += item.totalPresent;
+      total.totalDraft += item.totalDraft;
+      total.totalPending += item.totalPending;
+      total.totalAccepted += item.totalAccepted;
+    })
+  }
+
+  return (
+    <TableContainer component={Paper}>
+      <Table className={classes.table} aria-label="spanning table" style={{width: 'auto'}}>
+        <TableHead>
+          <TableRow>
+            <TableCell align="center" style={{minWidth:'350px', fontWeight: 'bold'}}>Tên phòng xét nghiệm</TableCell> 
+            <TableCell align="right" style={{maxWidth:'150px', fontWeight: 'bold'}}>Số mẫu chưa chuyển</TableCell> 
+            <TableCell align="right" style={{maxWidth:'150px', fontWeight: 'bold'}}>Số mẫu chờ xác nhận</TableCell> 
+            <TableCell align="right" style={{maxWidth:'150px', fontWeight: 'bold'}}>Số mẫu được chấp nhận</TableCell> 
+            <TableCell align="right" style={{maxWidth:'150px', fontWeight: 'bold'}}>Số lượng mẫu</TableCell> 
+            {/* <TableCell align="right" style={{}}></TableCell>  */}
+
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {data?.map((row, index) => (
+            <TableRow key={index}>
+              <TableCell align="center">{row.healthOrgName}</TableCell>
+              <TableCell style={{}} align="right">{ccyFormat(row.totalDraft)}</TableCell>
+              <TableCell style={{}} align="right">{ccyFormat(row.totalPending)}</TableCell>
+              <TableCell style={{}} align="right">{ccyFormat(row.totalAccepted)}</TableCell>
+              <TableCell style={{}} align="right">{ccyFormat(row.totalSample)}</TableCell>
+              {/* <TableCell></TableCell> */}
+            </TableRow>
+          ))}
+
+          <TableRow>
+            {/* <TableCell rowSpan={3} /> */}
+            <TableCell style={{fontWeight: 'bold'}} align="right" colSpan={1}>
+              Tổng
+            </TableCell>
+            <TableCell align="right" style={{fontWeight: 'bold'}}>{total.totalDraft ? ccyFormat(total.totalDraft) : 0}</TableCell>
+            <TableCell align="right" style={{fontWeight: 'bold'}}>{total.totalPending ? ccyFormat(total.totalPending) : 0}</TableCell>
+            <TableCell align="right" style={{fontWeight: 'bold'}}>{total.totalAccepted ? ccyFormat(total.totalAccepted) : 0}</TableCell>
+            <TableCell align="right" style={{fontWeight: 'bold'}}>{total.total ? ccyFormat(total.total) : 0}</TableCell>
+            <TableCell></TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}

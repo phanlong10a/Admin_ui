@@ -1,0 +1,348 @@
+import {
+    Grid,
+    FormControl,
+    InputLabel,
+    Button,
+    Input,
+    Checkbox,
+    TablePagination,
+    InputAdornment,
+    Dialog,
+    DialogActions,
+    IconButton,Radio,
+		Icon,
+		TextField 
+  } from "@material-ui/core";
+  import React, { Component } from "react";
+  import SearchIcon from "@material-ui/icons/Search";
+  import CloseIcon from "@material-ui/icons/Close";
+  import MaterialTable, {
+    MTableToolbar,
+  } from "material-table";
+  import SelectSamplePopupChoose from "./SelectSamplePopupChoose"
+  import {updateResultSample} from "./SampleService";
+  import { searchByPage } from "../SuspectedPerson/SuspectedPersonService";
+  import { ValidatorForm, TextValidator } from "react-material-ui-form-validator";
+  import DialogContent from "@material-ui/core/DialogContent";
+  import DialogTitle from "@material-ui/core/DialogTitle";
+  import Draggable from "react-draggable";
+  import Paper from "@material-ui/core/Paper";
+	import Autocomplete from '@material-ui/lab/Autocomplete';
+	import { toast } from 'react-toastify';
+	import 'react-toastify/dist/ReactToastify.css';
+
+	toast.configure({
+    autoClose: 2000,
+    draggable: false,
+    limit: 3
+	});
+
+  function PaperComponent(props) {
+    return (
+      <Draggable
+        handle="#draggable-dialog-title"
+        cancel={'[class*="MuiDialogContent-root"]'}
+      >
+        <Paper {...props} />
+      </Draggable>
+    );
+  }
+  class ListSampleChoose extends React.Component {
+    constructor(props) {
+      super(props);
+      this.handleChange = this.handleChange.bind(this);
+    }
+    state = {
+      rowsPerPage: 5,
+      page: 0,
+      data: [],
+      totalElements: 0,
+      itemList: [],
+      shouldOpenEditorDialog: false,
+      shouldOpenConfirmationDialog: false,
+      selectedItem: {},
+      text: "",
+      shouldOpenProductDialog: false,
+      chidren: [],
+			listSample: [],
+			resultSample: null,
+      shouldOpenSampleChoose:false,
+      sampleCommon:[],
+      listSamplePagination: [],
+    };
+
+		listResultSample = [
+			{ result: "Positive", id: "Dương tính" },
+			{ result: "Checking", id: "Dương tính chờ xác nhận" },
+			{ result: "Negative", id: "Âm tính" },
+	]
+  
+    handleChange = (event, source) => {
+      event.persist();
+      this.setState({
+        [event.target.name]: event.target.value
+      });
+    };
+  
+    setPage = (page) => {
+      let pageStart = page*this.state.rowsPerPage
+      let pageEnd = this.state.rowsPerPage + pageStart
+      let list = this.state.sampleCommon.slice(pageStart, pageEnd)
+      this.setState({ page: page,  listSamplePagination: list})
+    }
+
+    setRowsPerPage = (event) => {
+        this.setState({ rowsPerPage: event.target.value, page: 0 }, function () {
+          let list = this.state.sampleCommon.slice(0, this.state.rowsPerPage)
+          this.setState({listSamplePagination: list})
+        })
+    }
+
+    handleChangePage = (event, newPage) => {
+        this.setPage(newPage)
+    }
+
+    componentDidMount() {
+    }
+  
+    componentWillMount() {
+      // let { listSample } = this.props;
+      // let list = [...listSample] 
+      // this.setState({ listSample: list });
+    }
+  
+    handleOKEditClose = () => {
+      this.setState({
+        shouldOpenProductDialog: false,
+        shouldOpenSampleChoose: false,
+      });
+      // this.updatePageData();
+    };
+  
+    onClickRow = selectedRow => {
+      document.querySelector(`#radio${selectedRow.id}`).click();
+    };
+
+		removeSample = (id) => {
+      let { sampleCommon} = this.state;
+      let listComm = [];
+      listComm = sampleCommon.filter(item => item.id !== id)
+      
+      let pageStart = this.state.page*this.state.rowsPerPage
+      let pageEnd = this.state.rowsPerPage + pageStart
+      let list = listComm.slice(pageStart, pageEnd)
+
+      this.setState({ sampleCommon: listComm, listSamplePagination: list})
+		}
+		
+		handleUpdate = (list, result) => {
+      const { handleClose} = this.props;
+			updateResultSample(list, result).then(() => {
+        handleClose()
+				toast.success("Đã cập nhật thành công")
+			})
+		}
+
+    openSampleChoose(){
+      this.setState({shouldOpenSampleChoose :true})
+    }
+
+    updateListSampleChoose = (listSample) => {
+      let list = listSample.slice(0, this.state.rowsPerPage)
+      this.setState({ sampleCommon: listSample, shouldOpenSampleChoose: false }, () => {
+        this.setState({listSamplePagination: list}) 
+      })
+    }
+  
+    render() {
+      const { t, i18n, handleClose, handleSelect, open, updateListSampleChoose } = this.props;
+      let {
+        text,
+				listSample,
+        sampleCommon,
+        chidren,
+				resultSample,
+        listSamplePagination
+      } = this.state;
+      let columns = [
+        {
+          title: t("general.select"),
+          field: "custom",
+          align: "left",
+          width: "250",
+          render: rowData => (
+            <Icon 
+							fontSize="small" 
+							color="error"
+							style={{cursor: 'pointer'}}
+							onClick={() => {
+								this.removeSample(rowData.id)
+							}}
+						>
+							delete
+						</Icon>
+          )
+        },
+        {
+          title: t("Mã mẫu"),
+          field: "code",
+          align: "left",
+          width: "150"
+        },
+        {
+            title: t("CCCD"),
+            field: "person.idNumber",
+            align: "left",
+            width: "150"
+        },
+        {
+          title: t("Tên bênh nhân"),
+          field: "person.name",
+          width: "150"
+        },
+        {
+          title: "Kết quả mẫu",
+          field: "sampleResult",
+          width: "150",
+					render: rowData => {
+						if (rowData.sampleResult == 'Positive') return <span>Dương tính</span>;
+						else if (rowData.sampleResult == 'Negative') return <span>Âm tính</span>;
+						else if (rowData.sampleResult == 'Checking') return <span>Dương tính chờ xác nhận</span>;
+				},
+        }
+      ];
+      return (
+        <div>
+        <Dialog
+          // onClose={handleClose}
+          open={open}
+          PaperComponent={PaperComponent}
+          maxWidth={"md"}
+          fullWidth
+        >
+          <DialogTitle style={{ cursor: "move" }} id="draggable-dialog-title">
+            <span className="mb-20 styleColor">
+              Danh sách mẫu đã chọn
+            </span>
+          </DialogTitle>
+          <DialogContent dividers>
+            <Grid container spacing={2}>
+              <Grid item md={6} xs={6}>
+								<Autocomplete
+                  options={this.listResultSample}
+                  getOptionLabel={(option) => option.id}
+                  id="debug"
+                  onChange={(event, value) => {
+                    this.setState({ resultSample: value?.result })
+                  }}
+                  renderInput={(params) => <TextField {...params} label="Kết quả mẫu" />}
+                  />
+              </Grid>
+              <Grid item md={6} xs={6}>
+                <Button
+                  size={'lagre'}
+                  className="mb-16 mr-16 align-bottom"
+                  variant="contained"
+                  color="primary"
+                  style={{marginTop:"20px", marginLeft:"15px"}}
+                    onClick={() => { this.openSampleChoose() }}
+                >
+                  Chọn mẫu
+                  </Button>
+              </Grid>
+              <Grid item xs={12}>
+                <MaterialTable
+                  data={listSamplePagination.map(d => ({...d}))}
+                  columns={columns}
+                  options={{
+                  selection: false,
+                  actionsColumnIndex: -1,
+                  paging: false,
+                  search: false,
+                  rowStyle: rowData => ({
+                    backgroundColor: (rowData.tableData.id % 2 === 1) ? '#EEE' : '#FFF',
+                  }), 
+                  headerStyle: {
+                    backgroundColor: '#358600',
+                    color:'#fff',
+                  },
+                  padding: 'dense',
+                  toolbar: false
+                }}
+                  components={{
+                    Toolbar: props => (
+                      <div style={{ witdth: "100%" }}>
+                        <MTableToolbar {...props} />
+                      </div>
+                    )
+                  }}
+                  onSelectionChange={rows => {
+                    this.data = rows;
+                  }}
+                  localization={{
+                  body: {
+                    emptyDataSourceMessage: `${t(
+                      "general.emptyDataMessageTable"
+                    )}`,
+                  },
+                }}
+                />
+
+                <TablePagination
+                  align="left"
+                  className="px-16"
+                  rowsPerPageOptions={[1, 5, 10, 25, 50, 100]}
+                  component="div"
+                  labelRowsPerPage={t('general.rows_per_page')}
+                  labelDisplayedRows={({ from, to, count }) => `${from}-${to} ${t('general.of')} ${count !== -1 ? count : `more than ${to}`}`}
+                  count={sampleCommon.length}
+                  rowsPerPage={this.state.rowsPerPage}
+                  page={this.state.page}
+                  backIconButtonProps={{
+                    'aria-label': 'Previous Page',
+                  }}
+                  nextIconButtonProps={{
+                    'aria-label': 'Next Page',
+                  }}
+                  onChangePage={this.handleChangePage}
+                  onChangeRowsPerPage={this.setRowsPerPage}
+                />  
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              className="mb-16 mr-36 align-bottom"
+              variant="contained"
+              color="secondary"
+              onClick={() => handleClose()}
+            >
+             Đóng
+            </Button>
+            <Button
+              className="mb-16 mr-16 align-bottom"
+              variant="contained"
+              color="primary"
+                onClick={() => this.handleUpdate(sampleCommon, resultSample)}
+            >
+              Cập nhật
+            </Button>
+          </DialogActions>
+        </Dialog>
+        
+          {this.state.shouldOpenSampleChoose && (
+            <SelectSamplePopupChoose
+              open={this.state.shouldOpenSampleChoose}
+              handleSelect={this.updateListSampleChoose}
+              handleClose={this.handleOKEditClose}
+              listSamplePick={sampleCommon}
+              t={t}
+              i18n={i18n}
+            />
+          )}
+        </div>
+      );
+    }
+  }
+  export default ListSampleChoose;
+  

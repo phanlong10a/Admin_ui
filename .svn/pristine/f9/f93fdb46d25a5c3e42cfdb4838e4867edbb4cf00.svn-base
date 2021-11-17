@@ -1,0 +1,622 @@
+import {
+  Grid,
+  FormControl,
+  InputLabel,
+  Button,
+  Input,
+  Checkbox,
+  TablePagination,
+  InputAdornment,
+  Dialog,
+  TextField,
+  DialogActions,
+  IconButton, Radio
+} from "@material-ui/core";
+import React, { Component } from "react";
+import SearchIcon from "@material-ui/icons/Search";
+import CloseIcon from "@material-ui/icons/Close";
+import MaterialTable, {
+  MTableToolbar,
+} from "material-table";
+import Autocomplete from '@material-ui/lab/Autocomplete';
+// import { searchByPageDto as searchByPage } from "./SampleService";
+import { searchByPage } from "../SuspectedPerson/SuspectedPersonService";
+import { suspectedLevelSearchByPage, epidemiologicalFactorsSearchByPage } from '../Sample/SampleService'
+import { ValidatorForm, TextValidator } from "react-material-ui-form-validator";
+import DialogContent from "@material-ui/core/DialogContent";
+import DialogTitle from "@material-ui/core/DialogTitle";
+import Draggable from "react-draggable";
+import Paper from "@material-ui/core/Paper";
+import { is } from "date-fns/locale";
+function PaperComponent(props) {
+  return (
+    <Draggable
+      handle="#draggable-dialog-title"
+      cancel={'[class*="MuiDialogContent-root"]'}
+    >
+      <Paper {...props} />
+    </Draggable>
+  );
+}
+class SelectSamplePopup extends React.Component {
+  constructor(props) {
+    super(props);
+    this.handleChange = this.handleChange.bind(this);
+  }
+
+  state = {
+    rowsPerPage: 5,
+    page: 0,
+    data: [],
+    totalElements: 0,
+    itemList: [],
+    shouldOpenEditorDialog: false,
+    shouldOpenConfirmationDialog: false,
+    suspectedLevelList: [],
+    epidemiologicalFactorsList: [],
+    epidemiologicalFactors: null,
+    epidemiologicalFactors: null,
+    selectedItem: {},
+    text: "",
+    shouldOpenProductDialog: false,
+    chidren: [],
+    checkAll: false,
+    removeChidren: [],
+  };
+
+  setPage = page => {
+    this.setState({ page }, function () {
+      this.updatePageData();
+    });
+  };
+
+  setRowsPerPage = event => {
+    this.setState({ rowsPerPage: event.target.value, page: 0 }, function () {
+      this.updatePageData();
+    });
+  };
+  suspectedLevelSearchByPage = () => {
+    suspectedLevelSearchByPage({ pageIndex: 0, pageSize: 100000, orgType: 2 }).then(({ data }) => {
+      this.setState({ suspectedLevelList: data?.content })
+    });
+  }
+
+  epidemiologicalFactorsSearchByPage = () => {
+    epidemiologicalFactorsSearchByPage({ pageIndex: 0, pageSize: 100000, orgType: 2 }).then(({ data }) => {
+      this.setState({ epidemiologicalFactorsList: data?.content })
+    });
+  }
+  handleChangePage = (event, newPage) => {
+    this.setPage(newPage);
+  };
+
+  handleChange = (event, source) => {
+    event.persist();
+    this.setState({
+      [event.target.name]: event.target.value
+    });
+  };
+
+  search() {
+    this.setPage(0, function () {
+      var searchObject = {};
+      searchObject.text = this.state.text;
+      searchObject.pageIndex = this.state.page;
+      searchObject.pageSize = this.state.rowsPerPage;
+      searchByPage(searchObject).then(({ data }) => {
+        let { chidren, removeChidren } = this.state;
+        // nếu đã có trong list chọn rồi thì sẽ thay trạng thái isCheck bằng true
+        let itemListClone = [...data.content];
+        itemListClone.map(item => {
+          const found = chidren.find(
+            obj => obj.id == item.id
+          );
+          if (found) {
+            item.isCheck = true;
+          } else {
+            item.isCheck = false;
+          }
+
+          const foundRemove = removeChidren.find(
+            obj => obj.id == item.id
+          );
+          if (foundRemove) {
+            item.isRemove = true;
+            item.isCheck = true;
+          } else {
+            item.isRemove = false;
+          }
+        });
+        this.setState(
+          { itemList: itemListClone, totalElements: data.totalElements },
+          () => { }
+        );
+      });
+    });
+  }
+
+  updatePageData = () => {
+    var searchObject = {};
+    searchObject.text = this.state.text;
+    searchObject.pageIndex = this.state.page + 1;
+    searchObject.suspectedLevel = this.state.suspectedLevel;
+    searchObject.epidemiologicalFactors = this.state.epidemiologicalFactors;
+    searchObject.pageSize = this.state.rowsPerPage;
+    searchByPage(searchObject).then(({ data }) => {
+      let { chidren, removeChidren } = this.state;
+      // nếu đã có trong list chọn rồi thì sẽ thay trạng thái isCheck bằng true
+      let itemListClone = [...data.content];
+      itemListClone.map(item => {
+        const found = chidren.find(
+          obj => obj.id == item.id
+        );
+        if (found) {
+          item.isCheck = true;
+        } else {
+          item.isCheck = false;
+        }
+
+        const foundRemove = removeChidren.find(
+          obj => obj.id == item.id
+        );
+        if (foundRemove) {
+          item.isRemove = true;
+          item.isCheck = true;
+        } else {
+          item.isRemove = false;
+        }
+      });
+      this.setState({ itemList: itemListClone, totalElements: data.totalElements });
+    });
+  };
+
+  componentDidMount() {
+    this.updatePageData();
+    this.suspectedLevelSearchByPage();
+    this.epidemiologicalFactorsSearchByPage();
+  }
+
+  handleClick = (event, item) => {
+    item.isCheck = event.target.checked;
+    let { chidren } = this.state;
+    if (chidren == null) {
+      chidren = [];
+    }
+    if (chidren != null && chidren.length == 0 && item.isCheck == true) {
+      chidren.push(item);
+    } else {
+      let itemInList = false;
+      chidren.forEach(el => {
+        if (el.id == item.id) {
+          itemInList = true;
+        }
+      });
+      if (!itemInList && item.isCheck == true) {
+        chidren.push(item);
+      } else {
+        if (item.isCheck === false) {
+          chidren = chidren.filter(
+            proper => proper.id !== item.id
+          );
+        }
+      }
+    }
+    this.setState({ chidren });
+  };
+
+  componentWillMount() {
+    let { open, handleClose, selectedItem, chidren, removeItem } = this.props;
+    console.log(selectedItem)
+    console.log(removeItem);
+    if (selectedItem != null && selectedItem.length > 0) {
+      const chidren = [...selectedItem];
+      this.setState({ chidren: chidren });
+    }
+    if (removeItem != null && removeItem.length > 0) {
+      const removeChidren = [...removeItem];
+      this.setState({ removeChidren: removeChidren });
+    }
+  }
+
+  clearKeyword = () => {
+    this.setState({ text: "" }, function () { });
+  };
+
+  handleKeyDownEnterSearch = e => {
+    if (e.key === "Enter") {
+      this.search();
+    }
+  };
+
+  handleOpenProductDialog = () => {
+    this.setState({
+      shouldOpenProductDialog: true
+    });
+  };
+  timeConverter(UNIX_timestamp) {
+    var a = new Date(UNIX_timestamp);
+    var months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+    var year = a.getFullYear();
+    var month = months[a.getMonth()];
+    var date = a.getDate();
+    var time = date + '/' + month + '/' + year;
+    return time;
+  }
+  handleDialogProductClose = () => {
+    this.setState({
+      shouldOpenProductDialog: false
+    });
+  };
+  selectSuspectedLevel = (event, value, source) => {
+    if (source == "suspectedLevel") {
+      this.setState({ suspectedLevel: value }, function () {
+        this.search();
+      });
+    }
+    if (source == "epidemiologicalFactors") {
+      this.setState({ epidemiologicalFactors: value }, () => {
+        this.search();
+      })
+    }
+
+  };
+
+  handleOKEditClose = () => {
+    this.setState({
+      shouldOpenProductDialog: false
+    });
+    this.updatePageData();
+  };
+
+  onClickRow = selectedRow => {
+    document.querySelector(`#radio${selectedRow.id}`).click();
+  };
+
+  handleClickAll = () => {
+    let checkAll = this.state.checkAll;
+    let chidren = this.state.chidren;
+    let itemList = this.state.itemList
+    this.setState({ checkAll: !checkAll }, () => {
+      if (!checkAll) {
+        let merge = chidren;
+
+        itemList.map(item => {
+          const found = chidren.find(
+            obj => obj.id == item.id
+          );
+          if (!found) {
+            merge.push(item)
+          }
+        });
+
+        this.setState({ chidren: merge }, () => { this.updatePageData() })
+      }
+      else {
+        let merge = [];
+
+        chidren.map(item => {
+          const found = itemList.find(
+            obj => obj.id == item.id
+          );
+          if (!found) {
+            merge.push(item)
+          }
+        });
+        this.setState({ chidren: merge }, () => { this.updatePageData() })
+      }
+    })
+
+  }
+
+  render() {
+
+    const { t, i18n, handleClose, handleSelect, open } = this.props;
+    let {
+      text,
+      shouldOpenProductDialog,
+      itemList,
+      epidemiologicalFactorsList,
+      suspectedLevelList,
+      checkAll,
+      chidren
+    } = this.state;
+    let columns = [
+      {
+        title: t("general.select"),
+        field: "custom",
+        align: "left",
+        width: "200",
+        render: rowData => (
+          <Checkbox
+            id={`radio${rowData.id}`}
+            name="radSelected"
+            value={rowData.id}
+            checked={rowData.isCheck}
+            onClick={event => this.handleClick(event, rowData)}
+            disabled={rowData.isRemove}
+          />
+        )
+      },
+      // {
+      //   title: t("Mã mẫu"),
+      //   field: "code",
+      //   align: "left",
+      //   width: "150"
+      // },
+      {
+        title: t("Tên bệnh nhân"),
+        field: "name",
+        align: "left",
+        width: "100%",
+        headerStyle: {
+          minWidth: "200px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "200px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+      },
+      {
+        title: t("Số chứng minh (CCCD)"),
+        field: "idNumber",
+        align: "left",
+        width: "100%",
+        headerStyle: {
+          minWidth: "200px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "200px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+      },
+      {
+        title: t("Số điện thoại"),
+        field: "phoneNumber",
+        align: "left",
+        width: "100%",
+        headerStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+      },
+      {
+        title: t("Mức độ nghi nhiễm"),
+        field: "suspectedLevel.name",
+        align: "left",
+        width: "100%",
+        headerStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+      },
+      {
+        title: t("Yếu tố nguy cơ"),
+        field: "epidemiologicalFactors.name",
+        align: "left",
+        width: "100%",
+        headerStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+      },
+      {
+        title: t("Địa chỉ"),
+        field: "detailAddress",
+        align: "left",
+        width: "100%",
+        headerStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+      },
+      // {
+      //   title: t("suspected_person.birthDate"),
+      //   field: "birthDate",
+      //   align: "left",
+      //   width: "100%",
+      //   headerStyle: {
+      //     minWidth: "150px",
+      //     paddingLeft: "0px",
+      //     paddingRight: "0px",
+      //   },
+      //   cellStyle: {
+      //     minWidth: "150px",
+      //     paddingLeft: "0px",
+      //     paddingRight: "0px",
+      //     textAlign: "left",
+      //   },
+      //   render: (rowData) => (
+      //     <p>
+      //       {rowData?.person?.birthDate ? this.timeConverter(rowData.person.birthDate) : ""}
+      //     </p>
+      //   ),
+      // },
+    ];
+    return (
+      <Dialog
+        // onClose={handleClose}
+        open={open}
+        PaperComponent={PaperComponent}
+        maxWidth={"md"}
+        fullWidth
+      >
+        <DialogTitle style={{ cursor: "move" }} id="draggable-dialog-title">
+          <span className="mb-20 styleColor">
+            {t("Chọn bệnh nhân")}
+          </span>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Grid container spacing={2}>
+            <Grid item md={4} xs={12}>
+              <Autocomplete
+                options={suspectedLevelList}
+                getOptionLabel={(option) => option.name}
+                id="debug"
+                onChange={(event, value) => { this.selectSuspectedLevel(event, value, "suspectedLevel") }}
+                renderInput={(params) => <TextField {...params} label="Tìm kiếm theo mức độ nghi nhiễm" />}
+              />
+            </Grid>
+            <Grid item md={4} xs={12}>
+              <Autocomplete
+                options={epidemiologicalFactorsList}
+                getOptionLabel={(option) => option.name}
+                id="debug"
+                onChange={(event, value) => { this.selectSuspectedLevel(event, value, "epidemiologicalFactors") }}
+                renderInput={(params) => <TextField {...params} label="Tìm kiếm theo yếu tố nguy cơ" />}
+              />
+            </Grid>
+            <Grid item md={4} xs={12}>
+              <FormControl fullWidth>
+                <InputLabel htmlFor="standard-adornment-amount">
+                  {t("EnterSearch")}
+                </InputLabel>
+                <Input
+                  id="standard-adornment-amount"
+                  name="text"
+                  value={text}
+                  onKeyDown={this.handleKeyDownEnterSearch}
+                  onChange={this.handleChange}
+                  endAdornment={
+                    <InputAdornment position="end">
+                      <IconButton>
+                        <SearchIcon onClick={() => this.search(text)} />
+                      </IconButton>
+                    </InputAdornment>
+                  }
+                />
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              {/* <Checkbox
+                onClick={this.handleClickAll}
+              /> */}
+              <Button
+                className="mb-16 mr-16"
+                variant="contained"
+                color="primary"
+                onClick={() => this.handleClickAll()}
+              >
+                {checkAll ? "Bỏ chọn mẫu trong trang" : "Chọn mẫu trong trang"}
+              </Button>
+              <MaterialTable
+                data={itemList}
+                columns={columns}
+                options={{
+                  selection: false,
+                  actionsColumnIndex: -1,
+                  paging: false,
+                  search: false,
+                  rowStyle: rowData => ({
+                    backgroundColor: (rowData.tableData.id % 2 === 1) ? '#EEE' : '#FFF',
+                  }),
+                  headerStyle: {
+                    backgroundColor: '#358600',
+                    color: '#fff',
+                  },
+                  padding: 'dense',
+                  toolbar: false
+                }}
+                components={{
+                  Toolbar: props => (
+                    <div style={{ witdth: "100%" }}>
+                      <MTableToolbar {...props} />
+                    </div>
+                  )
+                }}
+                onSelectionChange={rows => { //set
+                  this.setState({ chidren: rows })
+                }}
+                localization={{
+                  body: {
+                    emptyDataSourceMessage: `${t(
+                      "general.emptyDataMessageTable"
+                    )}`,
+                  },
+                }}
+              />
+              <TablePagination
+                align="left"
+                className="px-16"
+                rowsPerPageOptions={[1, 2, 3, 5, 10, 25]}
+                component="div"
+                labelRowsPerPage={t('general.rows_per_page')}
+                labelDisplayedRows={({ from, to, count }) => `${from}-${to} ${t('general.of')} ${count !== -1 ? count : `more than ${to}`}`}
+                count={this.state.totalElements}
+                rowsPerPage={this.state.rowsPerPage}
+                page={this.state.page}
+                labelRowsPerPage={t("general.rows_per_page")}
+                labelDisplayedRows={({ from, to, count }) =>
+                  `${from}-${to} ${t("general.of")} ${count !== -1 ? count : `more than ${to}`
+                  }`
+                }
+                backIconButtonProps={{
+                  "aria-label": "Previous Page"
+                }}
+                nextIconButtonProps={{
+                  "aria-label": "Next Page"
+                }}
+                onChangePage={this.handleChangePage}
+                onChangeRowsPerPage={this.setRowsPerPage}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            className="mb-16 mr-36 align-bottom"
+            variant="contained"
+            color="secondary"
+            onClick={() => handleClose()}
+          >
+            {t("general.cancel")}
+          </Button>
+          <Button
+            className="mb-16 mr-16 align-bottom"
+            variant="contained"
+            color="primary"
+            onClick={() => handleSelect(chidren)}
+          >
+            {t("general.select")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
+  }
+}
+export default SelectSamplePopup;

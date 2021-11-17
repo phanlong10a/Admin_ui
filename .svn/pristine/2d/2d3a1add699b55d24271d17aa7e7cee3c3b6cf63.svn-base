@@ -1,0 +1,995 @@
+import React from "react";
+import {
+  Grid,
+  IconButton,
+  Icon,
+  TablePagination,
+  Button, Link,
+  FormControl,
+  Input,
+  TextField,
+  InputAdornment,
+} from "@material-ui/core";
+import moment from "moment";
+import Autocomplete from '@material-ui/lab/Autocomplete';
+import MaterialTable, { MTableToolbar } from "material-table";
+import { Breadcrumb, ConfirmationDialog } from "egret";
+import { useTranslation } from "react-i18next";
+import { Helmet } from "react-helmet";
+import { withStyles } from "@material-ui/core/styles";
+import SearchIcon from "@material-ui/icons/Search";
+import Tooltip from "@material-ui/core/Tooltip";
+// import { Link } from "react-router-dom";
+import NotificationPopup from "../Component/NotificationPopup/NotificationPopup";
+import { suspectedLevelSearchByPage, epidemiologicalFactorsSearchByPage } from '../Sample/SampleService'
+import SuspectedPersonDialog from "./SuspectedPersonDialog";
+import authService from "../../services/jwtAuthService";
+import { getAllOrgByUserId } from "../User/UserService";
+import UserRoles from "app/services/UserRoles";
+import { saveAs } from "file-saver";
+import {
+  getItemById,
+  deleteItem,
+  searchByPage,
+  exportToExcel
+} from "./SuspectedPersonService";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import ImportExcelDialog from "./ImportExcelDialog";
+
+toast.configure({
+  autoClose: 2000,
+  draggable: false,
+  limit: 3,
+});
+
+const LightTooltip = withStyles((theme) => ({
+  tooltip: {
+    backgroundColor: theme.palette.common.white,
+    color: "rgba(0, 0, 0, 0.87)",
+    boxShadow: theme.shadows[1],
+    fontSize: 11,
+    marginBottom: "-1.5em",
+    marginLeft: "-1.5em",
+  },
+}))(Tooltip);
+
+function MaterialButton(props) {
+  const { t } = useTranslation();
+  const item = props.item;
+  return (
+    <div className="none_wrap">
+      <LightTooltip
+        title={t("general.editIcon")}
+        placement="right-end"
+        enterDelay={300}
+        leaveDelay={200}
+        PopperProps={{
+          popperOptions: {
+            modifiers: { offset: { enabled: true, offset: "10px, 0px" } },
+          },
+        }}
+      >
+        <IconButton size="small" onClick={() => props.onSelect(item, 0)}>
+          <Icon fontSize="small" color="primary">
+            edit
+          </Icon>
+        </IconButton>
+      </LightTooltip>
+      {UserRoles.isAdmin() && <LightTooltip
+        title={t("general.deleteIcon")}
+        placement="right-end"
+        enterDelay={300}
+        leaveDelay={200}
+        PopperProps={{
+          popperOptions: {
+            modifiers: { offset: { enabled: true, offset: "10px, 0px" } },
+          },
+        }}
+      >
+        <IconButton size="small" onClick={() => props.onSelect(item, 1)}>
+          <Icon fontSize="small" color="error">
+            delete
+          </Icon>
+        </IconButton>
+      </LightTooltip>}
+    </div>
+  );
+}
+
+class SuspectedPersonTable extends React.Component {
+  state = {
+    page: 0,
+    rowsPerPage: 10,
+    totalElements: 0,
+    itemList: [],
+    epidemiologicalFactors: "",
+    idNumber: "",
+    phoneNumber: "",
+    suspectedLevelList: [],
+    epidemiologicalFactorsList: [],
+    epidemiologicalFactors: null,
+    text: "",
+    suspectedLevel: null,
+    keyword: "",
+    item: null,
+    userOrgType: 0,
+    shouldOpenImportExcelDialog: false,
+  };
+
+  listGender = [
+    { id: "M", name: "Nam" },
+    { id: "F", name: "Nữ" },
+    { id: "U", name: "Không xác định" },
+  ];
+
+
+  constructor(props) {
+    super(props);
+    this.handleTextChange = this.handleTextChange.bind(this);
+  }
+
+  handleTextChange = (event) => {
+    this.setState({ [event.target.name]: event.target.value }, function () { });
+  };
+
+  handleKeyDownEnterSearch = (e) => {
+    if (e.key === "Enter") {
+      this.search();
+    }
+  };
+  suspectedLevelSearchByPage = () => {
+    suspectedLevelSearchByPage({ pageIndex: 0, pageSize: 100000, orgType: 2 }).then(({ data }) => {
+      this.setState({ suspectedLevelList: data?.content })
+    });
+  }
+
+  epidemiologicalFactorsSearchByPage = () => {
+    epidemiologicalFactorsSearchByPage({ pageIndex: 0, pageSize: 100000, orgType: 2 }).then(({ data }) => {
+      this.setState({ epidemiologicalFactorsList: data?.content })
+    });
+  }
+
+  setPage = (page) => {
+    this.setState({ page }, function () {
+      this.updatePageData();
+    });
+  };
+
+  setRowsPerPage = (event) => {
+    this.setState({ rowsPerPage: event.target.value, page: 0 }, function () {
+      this.updatePageData();
+    });
+  };
+
+  handleChangePage = (event, newPage) => {
+    this.setPage(newPage);
+  };
+
+  search() {
+    this.setState({ page: 0 }, () => {
+      this.updatePageData();
+    });
+  }
+
+  handleChangeDate = (value, name) => {
+    if (value != null) {
+      this.setState({ yearObj: value, year: value.getFullYear() });
+    } else if (value == null) {
+      this.setState({ yearObj: null, year: null });
+    }
+  };
+
+  checkData = () => {
+    if (!this.data || this.data.length === 0) {
+      this.setState({
+        shouldOpenNotificationPopup: true,
+        Notification: "general.noti_check_data",
+      });
+    } else if (this.data.length === this.state.itemList.length) {
+      // alert("Bạn có muốn xoá toàn bộ");
+
+      this.setState({ shouldOpenConfirmationDeleteAllDialog: true });
+    } else {
+      this.setState({ shouldOpenConfirmationDeleteAllDialog: true });
+    }
+  };
+
+
+  updatePageData = () => {
+    var searchObject = {};
+    searchObject.text = this.state.keyword.trim();
+    searchObject.idNumber = this.state.idNumber;
+    searchObject.phoneNumber = this.state.phoneNumber;
+    searchObject.epidemiologicalFactors = this.state.epidemiologicalFactors;
+    searchObject.suspectedLevel = this.state.suspectedLevel;
+    searchObject.pageIndex = this.state.page + 1;
+    searchObject.pageSize = this.state.rowsPerPage;
+    searchByPage(searchObject).then(({ data }) => {
+      this.setState(
+        {
+          itemList: [...data.content],
+          totalElements: data.totalElements,
+        },
+        () => { }
+      );
+    });
+    // .catch((err) => {
+    //   toast.warning(err + "");
+    // });
+  };
+
+  handleOKEditClose = () => {
+    this.setState({
+      shouldOpenEditorDialog: false,
+      shouldOpenConfirmationDialog: false,
+      shouldOpenImportExcelDialog: false,
+    });
+    this.updatePageData();
+  };
+
+  handleDeleteMaintainRequestStatus = (id) => {
+    this.setState({
+      id,
+      shouldOpenConfirmationDialog: true,
+    });
+  };
+
+  handleEditMaintainRequestStatus = (item) => {
+    getItemById(item.id).then((result) => {
+      this.setState({
+        item: result.data,
+        shouldOpenEditorDialog: true,
+      });
+    });
+  };
+
+  handleExportExcel = () => {
+    let { t } = this.props;
+    const { itemList } = this.state;
+    if (itemList != null && itemList.length > 0) {
+      var searchObject = {};
+      searchObject.text = this.state.keyword.trim();
+      searchObject.idNumber = this.state.idNumber;
+      searchObject.phoneNumber = this.state.phoneNumber;
+      searchObject.pageIndex = 0;
+      searchObject.pageSize = 10000;
+      exportToExcel(searchObject)
+        .then((res) => {
+          toast.info(this.props.t('general.successExport'));
+          let blob = new Blob([res.data], {
+            type:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          });
+          saveAs(blob, "DanhSachbenhNhanNghuiNhiem.xlsx");
+        })
+        .catch((err) => {
+          // console.log(err);
+        });
+    } else {
+      toast.warning(t("Không có dữ liệu"));
+    }
+  };
+  selectSuspectedLevel = (event, value, source) => {
+    if (source == "suspectedLevel") {
+      this.setState({ suspectedLevel: value }, function () {
+        this.search();
+      });
+    }
+    if (source == "epidemiologicalFactors") {
+      this.setState({ epidemiologicalFactors: value }, () => {
+        this.search();
+      })
+    }
+
+  }
+
+  handleConfirmationResponse = () => {
+    let { t } = this.props;
+    deleteItem(this.state.id)
+      .then(() => {
+        this.updatePageData();
+        this.handleDialogClose();
+        toast.success(t("general.deleteSuccess"));
+      })
+      .catch(() => {
+        toast.warning(t("general.error"));
+        this.handleDialogClose();
+      });
+  };
+
+  componentDidMount() {
+    this.updatePageData();
+    this.suspectedLevelSearchByPage();
+    this.epidemiologicalFactorsSearchByPage();
+    if (!UserRoles.isAdmin()) {
+      this.getUserOrgType();
+    }
+  }
+
+  getUserOrgType() {
+    let user = authService.getLoginUser()
+    if (user != null) {
+      getAllOrgByUserId(user.id).then(({ data }) => {
+        if (data != null && data.org != null)
+          this.setState({ userOrgType: data.org.orgType })
+      });
+    }
+
+  }
+  handleEditItem = (item) => {
+    this.setState({
+      item: item,
+      shouldOpenEditorDialog: true,
+    });
+  };
+
+  handleDelete = (id) => {
+    this.setState({
+      id,
+      shouldOpenConfirmationDialog: true,
+    });
+  };
+
+  handleDialogClose = () => {
+    this.setState({
+      shouldOpenEditorDialog: false,
+      shouldOpenConfirmationDialog: false,
+      shouldOpenConfirmationDeleteAllDialog: false,
+      shouldOpenNotificationPopup: false,
+      shouldOpenImportExcelDialog: false,
+    });
+  };
+
+  async handleDeleteList(list) {
+    let listAlert = [];
+    var { t } = this.props;
+    for (var i = 0; i < list.length; i++) {
+      // deleteItem(list[i].id)
+      try {
+        await deleteItem(list[i].id);
+      } catch (error) {
+        listAlert.push(list[i].name);
+      }
+    }
+    toast.success(t("general.deleteSuccess"));
+    this.handleDialogClose();
+    if (listAlert.length === list.length) {
+      this.setState({
+        shouldOpenNotificationPopup: true,
+        Notification: "Không thể xoá bản ghi vì đã được sử dụng ở nơi khác",
+      });
+      // alert("Các trạng thái đều đã sử dụng");
+    } else if (listAlert.length > 0) {
+      this.setState({
+        shouldOpenNotificationPopup: true,
+        Notification: "Đã xoá các bản ghi chưa sử dụng ở nơi khác",
+      });
+      // alert("Đã xoá các trạng thái chưa sử dụng");
+    }
+  }
+
+  handleDeleteAll = () => {
+    //alert(this.data.length);
+    this.handleDeleteList(this.data)
+      .then(() => {
+        this.updatePageData();
+        // this.handleDialogClose();
+        this.data = null;
+      })
+      .catch(() => { });
+  };
+
+  importExcel = () => {
+    this.setState({
+      shouldOpenImportExcelDialog: true,
+    });
+  };
+
+  render() {
+    const { t, i18n } = this.props;
+    let TitlePage = t("suspected_person.title");
+    let {
+      keyword,
+      rowsPerPage,
+      page,
+      totalElements,
+      itemList,
+      item,
+      idNumber,
+      epidemiologicalFactorsList,
+      phoneNumber,
+      suspectedLevelList,
+      userOrgType,
+      shouldOpenConfirmationDialog,
+      shouldOpenEditorDialog,
+      shouldOpenConfirmationDeleteAllDialog,
+      shouldOpenNotificationPopup,
+      shouldOpenImportExcelDialog,
+      // listYear,
+    } = this.state;
+    let columns = [
+      {
+        title: t("general.action"),
+        field: "custom",
+        align: "left",
+        width: "50px",
+        headerStyle: {
+          padding: "5px",
+        },
+        cellStyle: {
+          padding: "0px",
+        },
+        render: (rowData) => (
+          <MaterialButton
+            item={rowData}
+            onSelect={(rowData, method) => {
+              if (method === 0) {
+                getItemById(rowData.id).then(({ data }) => {
+                  this.setState({
+                    item: data,
+                    shouldOpenEditorDialog: true,
+                  });
+                });
+              } else if (method === 1) {
+                this.handleDelete(rowData.id);
+              } else {
+                alert("Call Selected Here:" + rowData.id);
+              }
+            }}
+          />
+        ),
+      },
+      {
+        title: t("suspected_person.name"),
+        field: "name",
+        align: "left",
+        width: "100%",
+        headerStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "150px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+      },
+      {
+        title: t("suspected_person.birthDate"),
+        field: "birthDate",
+        align: "left",
+        width: "100%",
+        headerStyle: {
+          minWidth: "100px",
+          paddingLeft: "23px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "100px",
+          paddingLeft: "23px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+        render: (rowData) =>
+          rowData.birthDate ? (
+            <span>{moment(rowData.birthDate).format("YYYY")}</span>
+          ) : (
+            ""
+          ),
+      },
+      {
+        title: t("suspected_person.gender"),
+        field: "gender",
+        align: "left",
+        width: "100%",
+        headerStyle: {
+          minWidth: "50px",
+          paddingLeft: "23px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "50px",
+          paddingLeft: "23px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+        render: (rowData) => {
+          if (!rowData.gender) {
+            return "";
+          }
+          let filter = this.listGender.filter(e => e.id == rowData.gender);
+          if (filter && filter.length > 0) {
+            return <span>{filter[0].name}</span>
+          } else {
+            return "";
+          }
+        }
+      },
+      {
+        title: t("Số điện thoại"),
+        field: "phoneNumber",
+        align: "left",
+        headerStyle: {
+          minWidth: "100px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "100px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("CCCD/ CMT"),
+        field: "idNumber",
+        align: "left",
+        headerStyle: {
+          minWidth: "100px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "100px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Địa chỉ chi tiết hiện tại"),
+        field: "detailAddress",
+        align: "left",
+        headerStyle: {
+          minWidth: "100px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "100px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Xã/ phường"),
+        field: "wardOfResidence.name",
+        align: "left",
+        headerStyle: {
+          minWidth: "120px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "120px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Quận/ huyện"),
+        field: "districtOfResidence.name",
+        align: "left",
+        headerStyle: {
+          minWidth: "120px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "120px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Tỉnh/ thành phố"),
+        field: "provinceOfResidence.name",
+        align: "left",
+        headerStyle: {
+          minWidth: "120px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "120px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Yếu tố dịch tễ"),
+        field: "epidemiologicalFactors.name",
+        align: "left",
+        headerStyle: {
+          minWidth: "220px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "220px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Yếu tố dịch tễ chi tiết"),
+        field: "detailEpidemiologicalFactors",
+        align: "left",
+        headerStyle: {
+          minWidth: "320px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "320px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("Nơi cách ly"),
+        field: "isolationPlace.name",
+        align: "left",
+        headerStyle: {
+          minWidth: "220px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+        cellStyle: {
+          minWidth: "220px",
+          paddingLeft: "10px",
+          paddingRight: "0px",
+        },
+      },
+      {
+        title: t("suspected_person.suspectedLevel"),
+        field: "suspectedLevel.name",
+        align: "left",
+        width: "220px",
+        cellStyle: {
+          minWidth: "220px",
+          paddingLeft: "0px",
+          paddingRight: "0px",
+          textAlign: "left",
+        },
+      },
+      // {
+      //   title: t("suspected_person.epidemiologicalFactors"),
+      //   field: "epidemiologicalFactors.name",
+      //   align: "left",
+      //   width: "220px",
+      //   cellStyle: {
+      //     minWidth: "220px",
+      //     paddingLeft: "0px",
+      //     paddingRight: "0px",
+      //     textAlign: "left",
+      //   },
+      // },
+    ];
+
+    return (
+      <div className="m-sm-30">
+        <Helmet>
+          <title>
+            {TitlePage} | {t("web_site")}
+          </title>
+        </Helmet>
+        <div className="mb-sm-30">
+          <Breadcrumb
+            routeSegments={[
+              {
+                name: t("Dashboard.directory"),
+                path: "dashboard/suspected-person",
+              },
+              { name: TitlePage },
+            ]}
+          />
+        </div>
+
+        <Grid container spacing={2} justify="space-between">
+          <Grid container spacing={2} item>
+            <Grid item md={3} sm={3} container spacing={2}>
+
+              <Grid item md={12}>
+                {(userOrgType == 0 || userOrgType == 2 || userOrgType == 3 || UserRoles.isAdmin()) && <Button
+                  style={{width: '110px'}}
+                  className="mt-10"
+                  variant="contained"
+                  color="primary"
+                  onClick={() => {
+                    this.handleEditItem({
+                      startDate: new Date(),
+                      endDate: new Date(),
+                    });
+                  }}
+                >
+                  {t("general.add")}
+                </Button>}
+                <Button
+                  style={{width: '110px'}}
+                  className="mt-10 ml-8"
+                  variant="contained"
+                  color="primary"
+                  onClick={() => {
+                    this.handleExportExcel();
+                  }}
+                >
+                  {t("Xuất excel")}
+                </Button>
+              </Grid>
+              <Grid item md={12}>
+                <Button
+                  style={{width: '110px'}}
+                  className="mt-10"
+                  variant="contained"
+                  color="primary"
+                  onClick={() => {
+                    this.importExcel();
+                  }}
+                >
+                  {t("Nhập excel")}
+                </Button>
+                <Link style={{ marginTop: '25px', marginLeft: '8px' }} href="https://docs.google.com/spreadsheets/d/1ksFNX2nt-d93dW6RjlzGdyXAS7YBs44uut9raVlduqo/edit#gid=0" target="_blank">Xem mẫu tại đây</Link>
+              </Grid>
+
+
+            </Grid>
+            {/* <Grid item lg={5} md={5} sm={5} xs={12}>
+
+             
+            </Grid> */}
+            <Grid item md={9} sm={9} container spacing={2}>
+              {/* <Grid item lg={3} md={3} sm={12} xs={12}>
+                {(userOrgType == 0 || userOrgType == 2 || userOrgType==3 || UserRoles.isAdmin()) && <Button
+                  className="mb-16 align-bottom"
+                  variant="contained"
+                  color="primary"
+                  onClick={() => {
+                    this.handleEditItem({
+                      startDate: new Date(),
+                      endDate: new Date(),
+                    });
+                  }}
+                >
+                  {t("general.add")}
+                </Button>}
+                <Button
+                  className="mb-16 ml-8 align-bottom"
+                  variant="contained"
+                  color="primary"
+                  onClick={() => {
+                    this.importExcel();
+                  }}
+                >
+                  {t("Nhập excel")}
+                </Button>
+              </Grid> */}
+              <Grid>
+                {shouldOpenImportExcelDialog && (
+                  <ImportExcelDialog
+                    t={t}
+                    i18n={i18n}
+                    handleClose={this.handleDialogClose}
+                    open={shouldOpenImportExcelDialog}
+                    handleOKEditClose={this.handleOKEditClose}
+                  />
+                )}
+              </Grid>
+              <Grid item md={4} sm={4}>
+                <Input
+                  className='mt-16 search_box w-100 stylePlaceholder'
+                  onChange={this.handleTextChange}
+                  onKeyDown={this.handleKeyDownEnterSearch}
+                  placeholder={t("Nhập SĐT ,Nhấn Enter để tìm kiếm")}
+                  name="phoneNumber"
+                  value={phoneNumber?.replace(/\s/g, "")}
+                  id="search_box_phoneNumber"
+
+                />
+              </Grid>
+
+              {/* <Grid item md={3} sm={4}>
+                <Input
+                  className="w-100"
+                  onChange={this.handleTextChange}
+                  onKeyDown={this.handleKeyDownEnterSearch}
+                  placeholder={t("Tìm kiếm theo yếu tố nguy cơ")}
+                  name="epidemiologicalFactors"
+                  value={epidemiologicalFactors?.replace(/\s/g, "")}
+                  id="search_box_epidemiologicalFactors"
+                />
+              </Grid> */}
+              <Grid item md={4} sm={4}>
+                <Input
+                  className='mt-16 search_box w-100 stylePlaceholder'
+                  size="small"
+                  onChange={this.handleTextChange}
+                  onKeyDown={this.handleKeyDownEnterSearch}
+                  placeholder={t("Nhập CCCD/CMT ,Nhấn Enter để tìm kiếm ")}
+                  name="idNumber"
+                  value={idNumber?.replace(/\s/g, "")}
+                  id="search_box_idNumber"
+                />
+              </Grid>
+              <Grid item md={4} sm={4}>
+                <Input
+                  className='mt-16 search_box w-100 stylePlaceholder'
+                  onChange={this.handleTextChange}
+                  onKeyDown={this.handleKeyDownEnterSearch}
+                  placeholder={t("Tìm kiếm theo tên, code")}
+                  name="keyword"
+                  value={keyword}
+                  id="search_box"
+                  startAdornment={
+                    <InputAdornment>
+                      <Link>
+                        {" "}
+                        <SearchIcon
+                          onClick={() => {
+                            this.search();
+                          }}
+                          style={{
+                            position: "absolute",
+                            top: "0",
+                            right: "0",
+                          }}
+                        />
+                      </Link>
+                    </InputAdornment>
+                  }
+                />
+              </Grid>
+              <Grid item md={4} sm={4}>
+                <Autocomplete
+                  options={suspectedLevelList}
+                  getOptionLabel={(option) => option.name}
+                  id="debug"
+                  onChange={(event, value) => { this.selectSuspectedLevel(event, value, "suspectedLevel") }}
+                  renderInput={(params) => <TextField {...params} label="Tìm kiếm theo mức độ nghi nhiễm" />}
+                />
+              </Grid>
+              <Grid item md={4} sm={4}>
+                <Autocomplete
+                  options={epidemiologicalFactorsList}
+                  getOptionLabel={(option) => option.name}
+                  id="debug"
+                  onChange={(event, value) => { this.selectSuspectedLevel(event, value, "epidemiologicalFactors") }}
+                  renderInput={(params) => <TextField {...params} label="Tìm kiếm theo yếu tố nguy cơ" />}
+                />
+              </Grid>
+
+
+              <Grid item md={4} sm={6}>
+
+                {shouldOpenNotificationPopup && (
+                  <NotificationPopup
+                    title={t("general.noti")}
+                    open={shouldOpenNotificationPopup}
+                    onYesClick={this.handleDialogClose}
+                    text={t(this.state.Notification)}
+                    agree={t("general.agree")}
+                  />
+                )}
+
+                {shouldOpenConfirmationDeleteAllDialog && (
+                  <ConfirmationDialog
+                    open={shouldOpenConfirmationDeleteAllDialog}
+                    onConfirmDialogClose={this.handleDialogClose}
+                    onYesClick={this.handleDeleteAll}
+                    text={t("general.deleteAllConfirm")}
+                    Yes={t("general.agree")}
+                    No={t("general.cancel")}
+                  />
+                )}
+              </Grid>
+
+
+
+            </Grid>
+          </Grid>
+          <Grid item xs={12}>
+            <div>
+              {shouldOpenEditorDialog && (
+                <SuspectedPersonDialog
+                  t={t}
+                  i18n={i18n}
+                  handleClose={this.handleDialogClose}
+                  open={shouldOpenEditorDialog}
+                  handleOKEditClose={this.handleOKEditClose}
+                  item={item}
+                />
+              )}
+
+              {shouldOpenConfirmationDialog && (
+                <ConfirmationDialog
+                  title={t("confirm")}
+                  open={shouldOpenConfirmationDialog}
+                  onConfirmDialogClose={this.handleDialogClose}
+                  onYesClick={this.handleConfirmationResponse}
+                  text={t("DeleteConfirm")}
+                  Yes={t("general.agree")}
+                  No={t("general.cancel")}
+                />
+              )}
+            </div>
+            <MaterialTable
+              title={t("general.list")}
+              data={itemList}
+              columns={columns}
+              //parentChildData={(row, rows) => rows.find(a => a.id === row.parentId)}
+              parentChildData={(row, rows) => {
+                var list = rows.find((a) => a.id === row.parentId);
+                return list;
+              }}
+              localization={{
+                body: {
+                  emptyDataSourceMessage: `${t(
+                    "general.emptyDataMessageTable"
+                  )}`,
+                },
+                toolbar: {
+                  // nRowsSelected: '${t('general.selects')}',
+                  nRowsSelected: `${t("general.selects")}`,
+                },
+              }}
+              options={{
+                selection: false,
+                actionsColumnIndex: -1,
+                paging: false,
+                search: false,
+                headerStyle: {
+                  backgroundColor: "#358600",
+                  color: "#fff",
+                  whiteSpace: "nowrap",
+                },
+                rowStyle: (rowData) => ({
+                  backgroundColor:
+                    rowData.tableData.id % 2 === 1 ? "#EEE" : "#FFF",
+                }),
+                maxBodyHeight: "650px",
+                minBodyHeight: "450px",
+
+                padding: "dense",
+                toolbar: false,
+              }}
+              components={{
+                Toolbar: (props) => <MTableToolbar {...props} />,
+              }}
+              onSelectionChange={(rows) => {
+                this.data = rows;
+                // this.setState({selectedItems:rows});
+              }}
+            />
+            <TablePagination
+              align="left"
+              className="px-16"
+              rowsPerPageOptions={[1, 2, 3, 5, 10, 25, 50, 100]}
+              component="div"
+              labelRowsPerPage={t("general.rows_per_page")}
+              labelDisplayedRows={({ from, to, count }) =>
+                `${from}-${to} ${t("general.of")} ${count !== -1 ? count : `more than ${to}`
+                }`
+              }
+              count={totalElements}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              backIconButtonProps={{
+                "aria-label": "Previous Page",
+              }}
+              nextIconButtonProps={{
+                "aria-label": "Next Page",
+              }}
+              onChangePage={this.handleChangePage}
+              onChangeRowsPerPage={this.setRowsPerPage}
+            />
+          </Grid>
+        </Grid>
+      </div >
+    );
+  }
+}
+
+export default SuspectedPersonTable;
+

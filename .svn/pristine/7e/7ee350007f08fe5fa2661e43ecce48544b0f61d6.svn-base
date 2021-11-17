@@ -1,0 +1,202 @@
+import React, { Component, useRef } from "react";
+import {
+	Dialog,
+	Button,
+	Grid,
+	Checkbox,
+	IconButton,
+	Icon,
+	DialogActions,
+} from "@material-ui/core";
+import { ValidatorForm, TextValidator } from "react-material-ui-form-validator";
+import MaterialTable, {
+	MTableToolbar,
+	Chip,
+	MTableBody,
+	MTableHeader,
+} from "material-table";
+import DialogTitle from "@material-ui/core/DialogTitle";
+import DialogContent from "@material-ui/core/DialogContent";
+import { useTranslation, withTranslation, Trans } from "react-i18next";
+import Draggable from "react-draggable";
+import Paper from "@material-ui/core/Paper";
+import { divide } from "lodash";
+import moment from "moment";
+
+function PaperComponent(props) {
+	return (
+		<Draggable
+			handle="#draggable-dialog-title"
+			cancel={'[class*="MuiDialogContent-root"]'}
+		>
+			<Paper {...props} />
+		</Draggable>
+	);
+}
+
+function MaterialButton(props) {
+	const { t, i18n } = useTranslation();
+}
+
+class SampleResultPrint extends React.Component {
+	state = {
+		item: {},
+		shouldOpenEditorDialog: false,
+		shouldOpenViewDialog: false,
+		shouldOpenConfirmationDialog: false,
+		selectAllItem: false,
+		selectedList: [],
+		totalElements: 0,
+		shouldOpenConfirmationDeleteAllDialog: false,
+	};
+
+	componentWillMount() {
+		let { open, handleClose, item } = this.props;
+		this.setState({ ...this.props.item });
+	}
+
+	handleFormSubmit = () => {
+		let content = document.getElementById("divcontents");
+		let pri = document.getElementById("ifmcontentstoprint").contentWindow;
+		pri.document.open();
+
+		pri.document.write(content.innerHTML);
+
+		pri.document.close();
+		pri.focus();
+		pri.print();
+	};
+
+	showSampleResult = (samResult) => {
+		if(samResult == 'Checking') {
+			return 'Dương tính chờ xác nhận'
+		}else if(samResult == 'Negative') {
+			return 'Âm tính'
+		}else if(samResult == 'Positive') {
+			return 'Dương tính'
+		}
+	}
+	render() {
+		const { t, i18n } = this.props;
+		let { open, handleClose, handleOKEditClose, item } = this.props;
+		let now = new Date();
+		return (
+			<Dialog
+				open={open}
+				PaperComponent={PaperComponent}
+				maxWidth="md"
+				fullWidth
+			>
+				<DialogTitle style={{ cursor: "move" }} id="draggable-dialog-title">
+				</DialogTitle>
+				<iframe
+					id="ifmcontentstoprint"
+					style={{ height: "0px", width: "0px", position: "absolute" }}
+				></iframe>
+				<ValidatorForm ref="form" onSubmit={this.handleFormSubmit}>
+					<DialogContent id="divcontents" style={{}}>
+						<div>
+							<div style={{ textAlign: "center" }}>
+								<p
+									style={{
+										fontSize: "1.2rem",
+										fontWeight: "bold",
+										marginBottom: "0px",
+									}}
+								>
+									PHIẾU KẾT QUẢ XÉT NGHIỆM SARS-CoV-2
+								</p>
+							</div>
+							<br />
+							<br />
+							<div>
+									<div style={{width:"33.33%", display: "inline-block"}}>
+										<div>1. Đơn vị lấy mẫu: {this.state.sampleCollectOrg.name}</div> 
+										<div>2. Ngày lấy mẫu: {this.state.sampleDate?
+											moment(this.state.sampleDate).format('DD/MM/YYYY') : "" }
+										</div>
+										<div>4. Ngày thực hiện: {this.state.testingDate?
+											moment(this.state.testingDate).format('DD/MM/YYYY') : "" }
+										</div>
+									</div>
+									<div style={{width:"33.33%", display: "inline-block"}}>
+										<div>3. Ngày nhận mẫu: {this.state.shipDate?
+											moment(this.state.shipDate).format('DD/MM/YYYY') : "" }
+										</div> 
+										<div> 5. Mã QTXN: </div>
+									</div>
+									<div style={{width:"33.33%", display: "inline-block"}}>
+										6. Kỹ thuật: RealTime RT-PCR
+									</div>
+							</div>
+							<div style={{marginTop: '10px'}}>
+								7. Kết quả xét nghiệm: 
+								<table style={{ textAlign: "center", borderCollapse: "collapse", width: "100%", marginTop: '10px'}}>
+									<tr class="table-header">
+										<th style={{border: "1px solid black"}}>
+											<p style={{ fontWeight: "bold" }}>STT</p>
+										</th>
+										<th style={{border: "1px solid black"}}>
+											<p style={{ fontWeight: "bold" }}>Mã số mẫu</p>
+										</th>
+										<th style={{border: "1px solid black"}}>
+											<p style={{ fontWeight: "bold" }}>Họ và tên bệnh nhân</p>
+										</th>
+										<th style={{border: "1px solid black"}}>
+											<p style={{ fontWeight: "bold" }}>Năm sinh / tuổi</p>
+										</th>
+										<th style={{border: "1px solid black"}}>
+											<p style={{ fontWeight: "bold" }}>Địa chỉ</p>
+										</th>
+										{/* <th><p style={{ fontWeight: "bold" }}>Loại mẫu</p></th> */}
+										<th style={{border: "1px solid black"}}>
+											<p style={{ fontWeight: "bold" }}>Kết quả</p>
+										</th>
+									</tr>
+									<tr>
+										<td style={{border: "1px solid black"}}>1</td>
+										<td style={{border: "1px solid black"}}>
+											{this.state.code ? this.state.code : ""}
+										</td>
+										<td style={{border: "1px solid black"}}>
+											{this.state.person.name ? this.state.person.name : ""}
+										</td>
+										<td style={{border: "1px solid black"}}>
+											{this.state.person.birthDate ?
+											moment(this.state.person.birthDate).format('YYYY') : ""}
+										</td>
+										<td style={{border: "1px solid black"}}>
+											{this.state.person.detailAddress ? this.state.person.detailAddress : ""}
+										</td>
+										{/* <td>{this.state.sampleType ? this.state.sampleType : ""}</td> */}
+										<td style={{border: "1px solid black"}}>
+											{this.state.sampleResult ? this.showSampleResult(this.state.sampleResult) : "Chưa có"}
+										</td>
+									</tr>
+								</table>
+							</div>
+						</div>
+					</DialogContent>
+
+					<DialogActions>
+						<div className="flex flex-space-between flex-middle">
+							<Button
+								variant="contained"
+								color="secondary"
+								className="mr-12"
+								onClick={() => this.props.handleClose()}
+							>
+								{t("general.cancel")}
+							</Button>
+							<Button variant="contained" color="primary" type="submit">
+								{t("In")}
+							</Button>
+						</div>
+					</DialogActions>
+				</ValidatorForm>
+			</Dialog>
+		);
+	}
+}
+
+export default SampleResultPrint;

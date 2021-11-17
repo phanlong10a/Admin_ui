@@ -1,0 +1,233 @@
+import Highcharts from "highcharts";
+import React from "react";
+var createReactClass = require("create-react-class");
+var HighchartsReact = createReactClass({
+  componentDidMount: function () {
+    var p = this.props;
+    var highcharts = p.highcharts || window.Highcharts;
+    var constructorType = p.constructorType || "chart";
+    // Create chart
+    this.chart = highcharts[constructorType](
+      this.container,
+      Object.assign({}, p.options)
+    );
+  },
+
+  shouldComponentUpdate: function (nextProps, nextState) {
+    var update = this.props.update;
+    // Update if not specified or set to true
+    return typeof update === "undefined" || update;
+  },
+
+  componentDidUpdate: function () {
+    this.chart.update(
+      Object.assign({}, this.props.options),
+      true,
+      !(this.props.oneToOne === false)
+    );
+  },
+
+  componentWillReceiveProps: function () {
+    if (this.props.update) {
+      this.chart.update(
+        Object.assign({}, this.props.options),
+        true,
+        !(this.props.oneToOne === false)
+      );
+    }
+  },
+
+  componentWillUnmount: function () {
+    // Destroy chart
+    this.chart.destroy();
+  },
+
+  render: function () {
+    var self = this;
+    var containerProps = this.props.containerProps || {};
+
+    // Add ref to div props
+    containerProps.ref = function (container) {
+      self.container = container;
+    };
+
+    // Create container for our chart
+    return React.createElement("div", containerProps);
+  },
+});
+
+const optionDefaults = {
+  chart: {
+    type: "column",
+    renderTo: "total-remain-cases",
+  },
+  title: {
+    text: "Yếu tố dịch tễ",
+  },
+  xAxis: {
+    categories: [],
+  },
+  yAxis: {
+    min: 0,
+    title: {
+      text: "Total",
+    },
+    stackLabels: {
+      enabled: true,
+      style: {
+        fontWeight: "bold",
+        color:
+          // theme
+          (Highcharts.defaultOptions.title.style &&
+            Highcharts.defaultOptions.title.style.color) ||
+          "gray",
+      },
+    },
+  },
+  legend: {
+    align: "right",
+    verticalAlign: "top",
+    layout: "vertical",
+    floating: false,
+    backgroundColor:
+      Highcharts.defaultOptions.legend.backgroundColor || "white",
+    borderColor: "#CCC",
+    borderWidth: 1,
+    shadow: false,
+  },
+  tooltip: {
+    headerFormat: "<b>{point.x}</b><br/>",
+    pointFormat: "{series.name}: {point.y}<br/>Total: {point.stackTotal}",
+  },
+  plotOptions: {
+    column: {
+      stacking: "normal",
+      dataLabels: {
+        enabled: true,
+      },
+    },
+  },
+  credits: {
+    enabled: false,
+  },
+  series: [
+    {
+      name: "Khác",
+      data: [],
+    },
+    {
+      name: "Vùng có dịch (BV Nhiêt đới TW cơ sở 2)",
+      data: [],
+    },
+    {
+      name: "Hỗ trợ tỉnh khác",
+      data: [],
+    },
+    {
+      name: "Sàng lọc cộng đồng",
+      data: [],
+    },
+    {
+      name: "Liên quan F2",
+      data: [],
+    },
+    {
+      name: "Liên quan F1",
+      data: [],
+    },
+    {
+      name: "Liên quan F0",
+      data: [],
+    },
+    {
+      name: "Nguy cơ cao - NNBN",
+      data: [],
+    },
+    {
+      name: "Nguy cơ cao - BNNT",
+      data: [],
+    },
+    {
+      name: "Nguy cơ cao - BNKCL",
+      data: [],
+    },
+    {
+      name: "Nguy cơ cao - Triệu chứng",
+      data: [],
+    },
+    {
+      name: "Nguy cơ cao - NVYT",
+      data: [],
+    },
+    {
+      name: "Nguy cơ cao - Khác",
+      data: [],
+    },
+    {
+      name: "Vùng có dịch - Nước ngoài",
+      data: [],
+    },
+    {
+      name: "Vùng có dịch - Khác",
+      data: [],
+    },
+    {
+      name: "Vùng có dịch (Bắc Gang)",
+      data: [],
+    },
+    {
+      name: "Vùng có dịch (Viện K)",
+      data: [],
+    },
+  ],
+};
+class TotalEpidemiologicalFactors extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { options: optionDefaults };
+  }
+
+  static getDerivedStateFromProps(props, state) {
+    let options = state.options;
+    let { data } = props;
+
+    let categories = [];
+    let series = [];
+
+    if (data != null && data.length > 0) {
+      console.log(data);
+      categories = data.map((item) => item.name);
+
+      series = options.series.map((series) => {
+        let detail = data.map((data) => {
+          return data.listStatus.find((e) => e.name === series.name);
+        });
+
+        return {
+          ...series,
+          data: detail.map((data) => (data?.count ? data.count : 0)),
+        };
+      });
+    }
+
+    if (categories && categories.length > 0) {
+      options.xAxis.categories = categories;
+      options.series = series;
+    }
+
+    return { options: options };
+  }
+
+  render() {
+    let { options } = this.state;
+    return (
+      <HighchartsReact
+        highcharts={Highcharts}
+        constructorType={"chart"}
+        options={options}
+        update={false}
+      />
+    );
+  }
+}
+export default TotalEpidemiologicalFactors;
